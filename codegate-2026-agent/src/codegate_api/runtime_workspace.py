@@ -4,6 +4,8 @@ import os
 import shutil
 from uuid import uuid4
 
+from codegate_filesystem import fsync_directory
+
 from codegate_api.config import Settings
 
 
@@ -38,11 +40,7 @@ class RuntimeWorkspace:
         staging = self._source_root.parent / f".source-seed-{uuid4().hex}"
         shutil.copytree(self._seed_source_root, staging, copy_function=shutil.copy2)
         os.replace(staging, self._source_root)
-        descriptor = os.open(self._source_root.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
+        fsync_directory(self._source_root.parent)
 
     def _verify_persistent_volume(self) -> None:
         mount = self._settings.railway_volume_mount_path

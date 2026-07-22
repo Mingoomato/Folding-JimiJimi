@@ -71,7 +71,7 @@ class WriteJournal:
     state: str
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 class StateStore:
@@ -118,9 +118,10 @@ class StateStore:
                 ON agent_runs(conversation_key, runtime_fingerprint, updated_at)
                 """
             )
-            connection.execute(
+            applied_at = _now_text()
+            connection.executemany(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-                (SCHEMA_VERSION, _now_text()),
+                [(version, applied_at) for version in (5, SCHEMA_VERSION)],
             )
             connection.commit()
 
@@ -1937,4 +1938,133 @@ CREATE INDEX IF NOT EXISTS idx_outbox_status_created
 ON outbox_events(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_executions_owner
 ON executions(tenant_id, subject_id, created_at);
+
+CREATE TABLE IF NOT EXISTS document_plans_v2 (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('mutation', 'creation', 'derivation')),
+    document_id TEXT NOT NULL,
+    format TEXT NOT NULL,
+    capability_id TEXT NOT NULL,
+    source_uri TEXT,
+    target_relative_path TEXT,
+    request_json TEXT NOT NULL,
+    operations_json TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN (
+        'preparing', 'pending_approval', 'approved', 'rejected', 'expired', 'consumed', 'failed'
+    )),
+    base_sha256 TEXT CHECK(base_sha256 IS NULL OR length(base_sha256) = 64),
+    proposed_sha256 TEXT CHECK(proposed_sha256 IS NULL OR length(proposed_sha256) = 64),
+    plan_hash TEXT UNIQUE CHECK(plan_hash IS NULL OR length(plan_hash) = 64),
+    graph_version TEXT NOT NULL,
+    capability_snapshot_id TEXT NOT NULL CHECK(length(capability_snapshot_id) = 64),
+    writer_fingerprint TEXT,
+    renderer_fingerprint TEXT,
+    structural_diff_json TEXT NOT NULL,
+    preview_manifest_json TEXT,
+    warnings_json TEXT NOT NULL,
+    error_code TEXT,
+    error_message TEXT,
+    error_retryable INTEGER NOT NULL DEFAULT 0 CHECK(error_retryable IN (0, 1)),
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_document_plans_v2_active_target
+ON document_plans_v2(tenant_id, target_relative_path)
+WHERE target_relative_path IS NOT NULL
+AND status IN ('preparing', 'pending_approval', 'approved');
+
+CREATE INDEX IF NOT EXISTS idx_document_plans_v2_owner
+ON document_plans_v2(tenant_id, subject_id, created_at);
+
+CREATE TABLE IF NOT EXISTS document_artifacts_v2 (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL REFERENCES document_plans_v2(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK(kind IN (
+        'proposed', 'preview_before', 'preview_after', 'intermediate'
+    )),
+    path TEXT NOT NULL,
+    sha256 TEXT NOT NULL CHECK(length(sha256) = 64),
+    mime_type TEXT NOT NULL,
+    byte_size INTEGER NOT NULL CHECK(byte_size >= 0),
+    preview_label TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE(plan_id, path)
+);
+
+CREATE TABLE IF NOT EXISTS document_approvals_v2 (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL UNIQUE REFERENCES document_plans_v2(id),
+    actor_id TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK(decision IN ('approved', 'rejected')),
+    plan_hash TEXT NOT NULL CHECK(length(plan_hash) = 64),
+    reason TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS document_executions_v2 (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT UNIQUE REFERENCES document_plans_v2(id),
+    undo_of_execution_id TEXT UNIQUE REFERENCES document_executions_v2(id),
+    tenant_id TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    change_kind TEXT NOT NULL CHECK(change_kind IN (
+        'create', 'update', 'derive', 'recovery_remove'
+    )),
+    format TEXT NOT NULL,
+    capability_id TEXT NOT NULL,
+    source_uri TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN (
+        'prepared', 'file_applied', 'syncing', 'completed', 'sync_failed',
+        'conflict', 'failed', 'undone'
+    )),
+    before_sha256 TEXT CHECK(before_sha256 IS NULL OR length(before_sha256) = 64),
+    after_sha256 TEXT CHECK(after_sha256 IS NULL OR length(after_sha256) = 64),
+    artifact_sha256 TEXT NOT NULL CHECK(length(artifact_sha256) = 64),
+    backup_path TEXT,
+    recovery_path TEXT,
+    graph_version_before TEXT NOT NULL,
+    graph_version_after TEXT,
+    event_id TEXT UNIQUE,
+    error_code TEXT,
+    error_message TEXT,
+    error_retryable INTEGER NOT NULL DEFAULT 0 CHECK(error_retryable IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_executions_v2_owner
+ON document_executions_v2(tenant_id, subject_id, created_at);
+
+CREATE TABLE IF NOT EXISTS document_idempotency_v2 (
+    scope TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    request_hash TEXT NOT NULL CHECK(length(request_hash) = 64),
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(scope, tenant_id, subject_id, key)
+);
+
+CREATE TABLE IF NOT EXISTS document_outbox_v2 (
+    id TEXT PRIMARY KEY,
+    execution_id TEXT NOT NULL REFERENCES document_executions_v2(id),
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'processed', 'failed')),
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts >= 0),
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    processed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_outbox_v2_status
+ON document_outbox_v2(status, created_at);
 """

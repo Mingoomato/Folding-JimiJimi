@@ -1,11 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from uuid import uuid4
 
 from codegate_api.agent.gateway import AgentGateway, AgentGatewayError, AgentOutcome
 from codegate_api.changes.hashing import request_hash
 from codegate_api.changes.service import ChangePlanService, ChangeServiceError
+from codegate_api.documents.models import (
+    DocumentChatMessageResponse,
+    DocumentOperation,
+    MutationPlanRequest,
+    PdfAnnotationAddOperation,
+    PdfFormFieldSetOperation,
+    PdfRedactTextOperation,
+    SpreadsheetCellsSetOperation,
+    TableCellSetOperation,
+    TextReplaceOperation,
+)
+from codegate_api.documents.service import DocumentService, DocumentServiceError
 from codegate_api.knowledge.access import AccessContext
 from codegate_api.knowledge.repository import KnowledgeRepository
 from codegate_api.models import (
@@ -27,10 +40,12 @@ class ChatService:
         *,
         agent: AgentGateway,
         plans: ChangePlanService,
+        document_plans: DocumentService,
         state: StateStore,
     ) -> None:
         self._agent = agent
         self._plans = plans
+        self._document_plans = document_plans
         self._state = state
         self._conversation_locks: dict[str, asyncio.Lock] = {}
         self._lock_guard = asyncio.Lock()
@@ -66,7 +81,10 @@ class ChatService:
                 request=request,
                 repository=repository,
                 access_context=access_context,
+                document_mode=False,
+                document_plan_key=idempotency_key,
             )
+            assert isinstance(response, ChatMessageResponse)
             if idempotency_key:
                 self._state.put_chat_idempotency(
                     tenant_id=tenant_id,
@@ -77,13 +95,60 @@ class ChatService:
                 )
             return response
 
+    async def create_document_message(
+        self,
+        *,
+        request: ChatMessageRequest,
+        repository: KnowledgeRepository,
+        access_context: AccessContext,
+        idempotency_key: str,
+    ) -> DocumentChatMessageResponse:
+        owner_key = (
+            f"{access_context.tenant_id or 'public'}:"
+            f"{access_context.subject_id or 'anonymous'}:{request.conversation_id}"
+        )
+        async with self._lock_guard:
+            conversation_lock = self._conversation_locks.setdefault(owner_key, asyncio.Lock())
+        async with conversation_lock:
+            tenant_id = access_context.tenant_id or "public"
+            subject_id = access_context.subject_id or "anonymous"
+            digest = request_hash(request.model_dump(mode="json"))
+            state_key = hashlib.sha256(f"v2:{idempotency_key}".encode()).hexdigest()
+            replay = self._state.get_chat_idempotency(
+                tenant_id=tenant_id,
+                subject_id=subject_id,
+                key=state_key,
+                request_hash=digest,
+            )
+            if replay is not None:
+                return DocumentChatMessageResponse.model_validate_json(replay)
+            response = await self._create_serialized(
+                request=request,
+                repository=repository,
+                access_context=access_context,
+                document_mode=True,
+                document_plan_key=idempotency_key,
+            )
+            if isinstance(response, ChatMessageResponse):
+                response = _document_chat_response(response)
+            self._state.put_chat_idempotency(
+                tenant_id=tenant_id,
+                subject_id=subject_id,
+                key=state_key,
+                request_hash=digest,
+                response_json=response.model_dump_json(),
+            )
+            return response
+
     async def _create_serialized(
         self,
         *,
         request: ChatMessageRequest,
         repository: KnowledgeRepository,
         access_context: AccessContext,
-    ) -> ChatMessageResponse:
+        document_mode: bool,
+        document_plan_key: str | None,
+    ) -> ChatMessageResponse | DocumentChatMessageResponse:
         tenant_id = access_context.tenant_id or "public"
         subject_id = access_context.subject_id or "anonymous"
         user_message_id = f"msg_{uuid4().hex}"
@@ -195,7 +260,7 @@ class ChatService:
             self._record_assistant(response, tenant_id, subject_id)
             return response
 
-        if decision.operation is None:
+        if decision.operation is None and decision.document_operation is None:
             response = _error_response(
                 request.conversation_id,
                 assistant_message_id,
@@ -204,12 +269,27 @@ class ChatService:
             )
             self._record_assistant(response, tenant_id, subject_id)
             return response
-        if decision.operation.replacement_text not in request.message:
+        if (
+            decision.operation is not None
+            and decision.operation.replacement_text not in request.message
+        ):
             response = _error_response(
                 request.conversation_id,
                 assistant_message_id,
                 code="CHANGE_REPLACEMENT_UNVERIFIED",
                 message="변경 후 텍스트는 요청에 정확히 포함해 주세요.",
+            )
+            self._record_assistant(response, tenant_id, subject_id)
+            return response
+        if decision.document_operation is not None and not _native_values_explicit(
+            decision.document_operation,
+            request.message,
+        ):
+            response = _error_response(
+                request.conversation_id,
+                assistant_message_id,
+                code="CHANGE_REPLACEMENT_UNVERIFIED",
+                message="Native document replacement values must be explicit in the request.",
             )
             self._record_assistant(response, tenant_id, subject_id)
             return response
@@ -265,6 +345,57 @@ class ChatService:
             self._record_assistant(response, tenant_id, subject_id)
             return response
 
+        if decision.document_operation is not None:
+            if not document_mode or document_plan_key is None:
+                response = _error_response(
+                    request.conversation_id,
+                    assistant_message_id,
+                    code="NATIVE_DOCUMENT_V2_REQUIRED",
+                    message="Native document changes require the /api/v2 chat contract.",
+                )
+                self._record_assistant(response, tenant_id, subject_id)
+                return response
+            assert decision.capability_id is not None
+            assert decision.capability_snapshot_id is not None
+            assert decision.graph_version is not None
+            assert decision.source_sha256 is not None
+            try:
+                document_plan = self._document_plans.queue_mutation(
+                    target_id,
+                    MutationPlanRequest(
+                        capability_id=decision.capability_id,
+                        expected_source_sha256=decision.source_sha256,
+                        capability_snapshot_id=decision.capability_snapshot_id,
+                        graph_version=decision.graph_version,
+                        operations=[decision.document_operation],
+                    ),
+                    access_context=access_context,
+                    idempotency_key=document_plan_key,
+                )
+            except DocumentServiceError as error:
+                response = _error_response(
+                    request.conversation_id,
+                    assistant_message_id,
+                    code=error.code,
+                    message=str(error),
+                )
+                self._record_assistant(response, tenant_id, subject_id)
+                return response
+            document = repository.get(target_id, access_context=access_context)
+            response_v2 = DocumentChatMessageResponse(
+                conversation_id=request.conversation_id,
+                message_id=assistant_message_id,
+                response_type=ResponseType.CHANGE_PREVIEW,
+                assistant_text=(
+                    "Native document preview is being prepared. Approve only the exact plan hash."
+                ),
+                documents=[document] if document is not None else [],
+                document_plan=document_plan,
+            )
+            self._record_assistant(response_v2, tenant_id, subject_id)
+            return response_v2
+
+        assert decision.operation is not None
         try:
             plan = self._plans.create_plan(
                 repository=repository,
@@ -340,7 +471,7 @@ class ChatService:
 
     def _record_assistant(
         self,
-        response: ChatMessageResponse,
+        response: ChatMessageResponse | DocumentChatMessageResponse,
         tenant_id: str,
         subject_id: str,
     ) -> None:
@@ -361,9 +492,54 @@ class ChatService:
                     if response.change_plan is not None
                     else None
                 ),
+                "document_plan_id": (
+                    response.document_plan.change_plan_id
+                    if isinstance(response, DocumentChatMessageResponse)
+                    and response.document_plan is not None
+                    else None
+                ),
                 "error_code": response.error.code if response.error is not None else None,
             },
         )
+
+
+def _document_chat_response(response: ChatMessageResponse) -> DocumentChatMessageResponse:
+    return DocumentChatMessageResponse(
+        conversation_id=response.conversation_id,
+        message_id=response.message_id,
+        response_type=response.response_type,
+        assistant_text=response.assistant_text,
+        documents=response.documents,
+        change_plan=response.change_plan,
+        error=response.error,
+    )
+
+
+def _native_values_explicit(operation: DocumentOperation, message: str) -> bool:
+    if isinstance(operation, TextReplaceOperation | TableCellSetOperation):
+        return operation.replacement in message
+    if isinstance(operation, PdfAnnotationAddOperation):
+        return operation.text in message
+    if isinstance(operation, PdfFormFieldSetOperation):
+        return operation.replacement in message
+    if isinstance(operation, PdfRedactTextOperation):
+        return operation.expected in message
+    if isinstance(operation, SpreadsheetCellsSetOperation):
+        return all(
+            _typed_value_explicit(cell.replacement.value, message) for cell in operation.cells
+        )
+    return False
+
+
+def _typed_value_explicit(value: object, message: str) -> bool:
+    if value is None:
+        return any(marker in message.casefold() for marker in ("null", "empty", "비우", "삭제"))
+    if isinstance(value, bool):
+        markers = ("true", "참", "예") if value else ("false", "거짓", "아니오")
+        return any(marker in message.casefold() for marker in markers)
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value)) in message or str(value) in message
+    return str(value) in message
 
 
 def _error_response(

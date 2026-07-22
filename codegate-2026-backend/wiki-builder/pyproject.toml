@@ -9,12 +9,16 @@ description = "Deterministic Gemini-assisted wiki builder for Markdown documents
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "codegate-filesystem",
   "httpx>=0.28,<0.29",
   "jsonschema>=4.23,<5",
   "markdown-it-py>=3.0,<4",
   "python-dotenv>=1.1,<2",
   "PyYAML>=6.0,<7",
 ]
+
+[tool.uv.sources]
+codegate-filesystem = { path = "../../packages/codegate-filesystem", editable = true }
 
 [project.optional-dependencies]
 dev = [

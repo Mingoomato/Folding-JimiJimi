@@ -106,7 +106,7 @@ def _create_native_fixture(tmp_path: Path) -> NativeFixture:
         '# 개인정보 처리 규정\n\n<a id="art-1"></a>\n## 보관 기간\n\n개인정보는 1년간 보관한다.\n'
     )
     input_text = _frontmatter(source_sha256, body)
-    input_path.write_text(input_text, encoding="utf-8")
+    input_path.write_text(input_text, encoding="utf-8", newline="\n")
 
     build_id = "build-0123456789abcdefabcd"
     storage_root = tmp_path / "storage"
@@ -121,8 +121,8 @@ def _create_native_fixture(tmp_path: Path) -> NativeFixture:
         "## 보관 기간\n\n개인정보는 1년간 보관한다.\n",
     )
     canonical_path.parent.mkdir(parents=True, exist_ok=True)
-    canonical_path.write_text(canonical_text, encoding="utf-8")
-    (build_dir / "README.md").write_text("# Native LLMWIKI\n", encoding="utf-8")
+    canonical_path.write_text(canonical_text, encoding="utf-8", newline="\n")
+    (build_dir / "README.md").write_text("# Native LLMWIKI\n", encoding="utf-8", newline="\n")
 
     manifest = {
         "schema_version": "1.0.0",
@@ -504,8 +504,8 @@ def test_native_adapter_marks_server_v2_source_fragments_read_only(tmp_path: Pat
         "<!-- section: 후속 의미 단위 -->\n\n두 번째 의미 단위다.\n",
         chunk_no="chunk-002",
     )
-    fixture.input_path.write_text(first, encoding="utf-8")
-    second_path.write_text(second, encoding="utf-8")
+    fixture.input_path.write_text(first, encoding="utf-8", newline="\n")
+    second_path.write_text(second, encoding="utf-8", newline="\n")
     _use_server_v2_ingest(
         fixture,
         [(fixture.input_path, "chunk-001"), (second_path, "chunk-002")],
@@ -523,7 +523,7 @@ def test_native_adapter_marks_server_v2_source_fragments_read_only(tmp_path: Pat
 
     pipeline = _build_pipeline(fixture, tmp_path)
     changed_source = fixture.source_path.read_text(encoding="utf-8").replace("1년", "3년")
-    fixture.source_path.write_text(changed_source, encoding="utf-8")
+    fixture.source_path.write_text(changed_source, encoding="utf-8", newline="\n")
     event = _event(
         fixture,
         event_id="evt_source_fragments",
@@ -902,7 +902,7 @@ def test_native_pipeline_updates_normalized_body_source_hash_and_revision(
     pipeline = _build_pipeline(fixture, tmp_path)
 
     changed_source = fixture.source_path.read_text(encoding="utf-8").replace("1년", "3년")
-    fixture.source_path.write_text(changed_source, encoding="utf-8")
+    fixture.source_path.write_text(changed_source, encoding="utf-8", newline="\n")
     after_sha256 = _sha256(changed_source.encode())
     event = _event(
         fixture,
@@ -932,7 +932,7 @@ def test_native_pipeline_updates_server_v2_single_fragment_idempotently(
     pipeline = _build_pipeline(fixture, tmp_path)
 
     changed_source = fixture.source_path.read_text(encoding="utf-8").replace("1년", "3년")
-    fixture.source_path.write_text(changed_source, encoding="utf-8")
+    fixture.source_path.write_text(changed_source, encoding="utf-8", newline="\n")
     after_sha256 = _sha256(changed_source.encode())
     event = _event(
         fixture,
@@ -957,7 +957,7 @@ def test_native_pipeline_renders_v2_body_with_llmwiki_v1_frontmatter(tmp_path: P
     fixture = _create_native_fixture(tmp_path)
     pipeline = _build_pipeline(fixture, tmp_path)
     changed_source = fixture.source_path.read_text(encoding="utf-8").replace("1년", "3년")
-    fixture.source_path.write_text(changed_source, encoding="utf-8")
+    fixture.source_path.write_text(changed_source, encoding="utf-8", newline="\n")
     after_sha256 = _sha256(changed_source.encode())
     event = _event(
         fixture,
@@ -1018,7 +1018,7 @@ def test_native_pipeline_rejects_doc2md_body_without_one_leading_h1(
     fixture = _create_native_fixture(tmp_path)
     pipeline = _build_pipeline(fixture, tmp_path)
     changed_source = fixture.source_path.read_text(encoding="utf-8").replace("1년", "3년")
-    fixture.source_path.write_text(changed_source, encoding="utf-8")
+    fixture.source_path.write_text(changed_source, encoding="utf-8", newline="\n")
     after_sha256 = _sha256(changed_source.encode())
     event = _event(
         fixture,
@@ -1058,9 +1058,10 @@ def test_native_pipeline_rejects_unapproved_normalized_input_content(tmp_path: P
             "UNAPPROVED-CONTENT\n\n## 보관 기간",
         ),
         encoding="utf-8",
+        newline="\n",
     )
     changed_source = fixture.source_path.read_text(encoding="utf-8").replace("1년", "3년")
-    fixture.source_path.write_text(changed_source, encoding="utf-8")
+    fixture.source_path.write_text(changed_source, encoding="utf-8", newline="\n")
     event = _event(
         fixture,
         event_id="evt_unapproved",
@@ -1089,16 +1090,18 @@ def test_native_pipeline_rejects_live_source_hash_race(tmp_path: Path) -> None:
     fixture.source_path.write_text(
         approved_source.replace("3년", "9년"),
         encoding="utf-8",
+        newline="\n",
     )
 
     with pytest.raises(LLMWikiCompatibilityError, match="live source changed"):
         pipeline._apply_inputs([event])  # noqa: SLF001
 
-    fixture.source_path.write_text(approved_source, encoding="utf-8")
+    fixture.source_path.write_text(approved_source, encoding="utf-8", newline="\n")
     assert pipeline._apply_inputs([event]) == {"REG-100001"}  # noqa: SLF001
     fixture.source_path.write_text(
         approved_source.replace("3년", "9년"),
         encoding="utf-8",
+        newline="\n",
     )
     with pytest.raises(LLMWikiCompatibilityError, match="live source changed"):
         pipeline._verify_live_sources([event])  # noqa: SLF001
@@ -1113,7 +1116,7 @@ def test_native_pipeline_restores_active_input_after_failed_publish_undo(
     original_source = fixture.source_path.read_text(encoding="utf-8")
     changed_source = original_source.replace("1년", "3년")
     changed_sha256 = _sha256(changed_source.encode())
-    fixture.source_path.write_text(changed_source, encoding="utf-8")
+    fixture.source_path.write_text(changed_source, encoding="utf-8", newline="\n")
     forward = _event(
         fixture,
         event_id="evt_forward",
@@ -1124,7 +1127,7 @@ def test_native_pipeline_restores_active_input_after_failed_publish_undo(
     )
     assert pipeline._apply_inputs([forward]) == {"REG-100001"}  # noqa: SLF001
 
-    fixture.source_path.write_text(original_source, encoding="utf-8")
+    fixture.source_path.write_text(original_source, encoding="utf-8", newline="\n")
     undo = _event(
         fixture,
         event_id="evt_undo",

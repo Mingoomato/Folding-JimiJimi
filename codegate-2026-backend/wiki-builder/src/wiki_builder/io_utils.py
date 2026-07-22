@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import shutil
@@ -11,6 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+from codegate_filesystem import file_lock, fsync_directory
 
 from wiki_builder.errors import UnsafeOutputError
 
@@ -99,11 +100,7 @@ def atomic_write_json(path: Path, value: Any) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        fsync_directory(path.parent)
     finally:
         if temporary.exists():
             temporary.unlink()
@@ -111,13 +108,8 @@ def atomic_write_json(path: Path, value: Any) -> None:
 
 @contextmanager
 def _file_lock(lock_path: Path):
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    with file_lock(lock_path):
+        yield
 
 
 def activate_build(

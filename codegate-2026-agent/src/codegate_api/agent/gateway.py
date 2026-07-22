@@ -35,8 +35,17 @@ from codegate_api.agent.runtime import (
     build_claude_agent_options,
 )
 from codegate_api.agent.session_store import LocalJsonlSessionStore
-from codegate_api.agent.tools import TOOL_CONTRACT_VERSION
+from codegate_api.agent.tools import TOOL_CONTRACT_VERSION, DocumentReadToolService
 from codegate_api.config import Settings
+from codegate_api.documents.models import (
+    DocumentOperation,
+    PdfAnnotationAddOperation,
+    PdfFormFieldSetOperation,
+    PdfRedactTextOperation,
+    SpreadsheetCellsSetOperation,
+    TableCellSetOperation,
+    TextReplaceOperation,
+)
 from codegate_api.knowledge.access import AccessContext
 from codegate_api.knowledge.repository import KnowledgeRepository
 from codegate_api.knowledge.schemas import DOCUMENT_ID_PATTERN
@@ -47,6 +56,10 @@ EXPECTED_TOOL_SOURCE_KINDS = {
     "mcp__codegate__document_get": "document_get",
     "mcp__codegate__knowledge_document_read": "canonical_document",
     "mcp__codegate__source_file_read": "current_source",
+}
+DOCUMENT_READ_TOOL_NAMES = {
+    "mcp__codegate__document_capabilities_get",
+    "mcp__codegate__source_structure_read",
 }
 
 
@@ -115,17 +128,40 @@ class AgentDecision(BaseModel):
             "One current-source-grounded replace_exact proposal for a ready change, otherwise null."
         ),
     )
+    document_operation: DocumentOperation | None = Field(
+        default=None,
+        description=(
+            "One native locator-based document operation grounded in source_structure_read, "
+            "otherwise null. It is a proposal and never a writer invocation."
+        ),
+    )
+    capability_id: str | None = Field(default=None, min_length=1, max_length=128)
+    capability_snapshot_id: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    graph_version: str | None = Field(default=None, min_length=1, max_length=128)
 
     @model_validator(mode="after")
     def enforce_decision_contract(self) -> AgentDecision:
         if self.prompt_contract_version != PROMPT_CONTRACT_VERSION:
             raise ValueError("prompt contract version does not match the runtime")
+        native_fields = (
+            self.document_operation,
+            self.capability_id,
+            self.capability_snapshot_id,
+            self.graph_version,
+        )
         if self.intent == "locate" and (
-            self.operation is not None or self.source_sha256 is not None
+            self.operation is not None
+            or self.source_sha256 is not None
+            or any(value is not None for value in native_fields)
         ):
             raise ValueError("locate decisions cannot contain a change operation or source hash")
         if self.outcome is not AgentOutcome.READY and (
-            self.operation is not None or self.source_sha256 is not None
+            self.operation is not None
+            or self.source_sha256 is not None
+            or any(value is not None for value in native_fields)
         ):
             raise ValueError("non-ready decisions cannot contain a change operation or source hash")
         if (
@@ -138,18 +174,33 @@ class AgentDecision(BaseModel):
             and self.target_document_id is not None
         ):
             raise ValueError("failed or unsupported decisions cannot identify a target document")
+        if self.operation is not None and self.document_operation is not None:
+            raise ValueError("a change decision cannot mix text and native document operations")
         if (
             self.outcome is AgentOutcome.READY
             and self.intent == "change"
             and (
                 self.target_document_id is None
                 or self.source_sha256 is None
-                or self.operation is None
+                or (self.operation is None and self.document_operation is None)
             )
         ):
             raise ValueError(
-                "a ready change requires a target, source hash, and replace_exact operation"
+                "a ready change requires a target, source hash, and one grounded operation"
             )
+        if self.document_operation is not None and any(
+            value is None
+            for value in (
+                self.capability_id,
+                self.capability_snapshot_id,
+                self.graph_version,
+            )
+        ):
+            raise ValueError("native document changes require capability and graph provenance")
+        if self.document_operation is None and any(
+            value is not None for value in native_fields[1:]
+        ):
+            raise ValueError("native provenance is only valid with a native document operation")
         if self.operation is not None and self.intent != "change":
             raise ValueError("only a change decision can contain an operation")
         return self
@@ -672,8 +723,13 @@ class GeminiAgentGateway:
 
 
 class ClaudeAgentGateway:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        document_reader: DocumentReadToolService | None = None,
+    ) -> None:
         self._settings = settings
+        self._document_reader = document_reader
         self._sessions = LocalJsonlSessionStore(
             settings.resolved_agent_state_root() / "transcripts"
         )
@@ -755,6 +811,7 @@ class ClaudeAgentGateway:
             session_id=None if effective_resume else session_id,
             resume=effective_resume,
             session_store=cast(SessionStore, self._sessions),
+            document_reader=self._document_reader,
         )
         prompt = build_turn_prompt(
             user_message=message,
@@ -837,9 +894,13 @@ class ClaudeAgentGateway:
         raise AgentGatewayError("AGENT_RESULT_MISSING", "Claude 최종 응답을 받지 못했습니다.")
 
 
-def build_agent_gateway(settings: Settings) -> AgentGateway:
+def build_agent_gateway(
+    settings: Settings,
+    *,
+    document_reader: DocumentReadToolService | None = None,
+) -> AgentGateway:
     if settings.agent_mode == "claude":
-        return ClaudeAgentGateway(settings)
+        return ClaudeAgentGateway(settings, document_reader)
     if settings.agent_mode == "gemini":
         return GeminiAgentGateway(settings)
     return DeterministicAgentGateway()
@@ -989,6 +1050,16 @@ def _validate_tool_trace(
             )
         return
 
+    if decision.document_operation is not None:
+        _validate_native_document_trace(
+            decision,
+            codegate_tool_uses,
+            result_payloads,
+            target_get_indices,
+            expected_graph_version=expected_graph_version,
+        )
+        return
+
     source_indices = [index for index, name in enumerate(names) if name == source_tool]
     if len(source_indices) != 1:
         raise AgentGatewayError(
@@ -1039,6 +1110,144 @@ def _validate_tool_trace(
         )
 
 
+def _validate_native_document_trace(
+    decision: AgentDecision,
+    tool_uses: list[ToolUseBlock],
+    result_payloads: dict[str, dict[str, Any]],
+    target_get_indices: list[int],
+    *,
+    expected_graph_version: str,
+) -> None:
+    capability_indices = [
+        index
+        for index, tool_use in enumerate(tool_uses)
+        if tool_use.name == "mcp__codegate__document_capabilities_get"
+    ]
+    structure_indices = [
+        index
+        for index, tool_use in enumerate(tool_uses)
+        if tool_use.name == "mcp__codegate__source_structure_read"
+    ]
+    if len(capability_indices) != 1 or len(structure_indices) != 1:
+        raise AgentGatewayError(
+            "AGENT_TOOL_TRACE_INVALID",
+            "native document changes require exactly one capability and structure read",
+        )
+    capability_index = capability_indices[0]
+    structure_index = structure_indices[0]
+    if (
+        not target_get_indices
+        or target_get_indices[0] >= capability_index
+        or capability_index >= structure_index
+        or structure_index != len(tool_uses) - 1
+        or tool_uses[structure_index].input.get("document_id") != decision.target_document_id
+    ):
+        raise AgentGatewayError(
+            "AGENT_TOOL_TRACE_INVALID",
+            "native document evidence must follow target, capability, then current structure order",
+        )
+    capability_payload = result_payloads[tool_uses[capability_index].id]
+    structure_payload = result_payloads[tool_uses[structure_index].id]
+    capability_data = capability_payload.get("data")
+    structure_data = structure_payload.get("data")
+    if not isinstance(capability_data, dict) or not isinstance(structure_data, dict):
+        raise AgentGatewayError(
+            "AGENT_TOOL_RESULT_INVALID",
+            "native document tool data is missing",
+        )
+    operation = decision.document_operation
+    assert operation is not None
+    if (
+        decision.graph_version != expected_graph_version
+        or structure_data.get("graph_version") != expected_graph_version
+        or structure_data.get("document_id") != decision.target_document_id
+        or structure_data.get("source_sha256") != decision.source_sha256
+        or structure_data.get("capability_snapshot_id") != decision.capability_snapshot_id
+        or capability_data.get("snapshot_id") != decision.capability_snapshot_id
+    ):
+        raise AgentGatewayError(
+            "AGENT_TOOL_RESULT_INVALID",
+            "native document source, graph, or capability provenance does not match",
+        )
+    provenance = structure_payload.get("provenance", {})
+    capability_provenance = capability_payload.get("provenance", {})
+    if (
+        provenance.get("source_sha256") != decision.source_sha256
+        or provenance.get("capability_snapshot_id") != decision.capability_snapshot_id
+        or capability_provenance.get("capability_snapshot_id") != decision.capability_snapshot_id
+    ):
+        raise AgentGatewayError(
+            "AGENT_TOOL_RESULT_INVALID",
+            "native document envelope provenance does not match the decision",
+        )
+    capabilities = capability_data.get("capabilities")
+    selected = (
+        [
+            item
+            for item in capabilities
+            if isinstance(item, dict) and item.get("capability_id") == decision.capability_id
+        ]
+        if isinstance(capabilities, list)
+        else []
+    )
+    if (
+        len(selected) != 1
+        or selected[0].get("active") is not True
+        or selected[0].get("mutate") is not True
+        or operation.type not in selected[0].get("operations", [])
+        or selected[0].get("format") != structure_data.get("format")
+    ):
+        raise AgentGatewayError(
+            "AGENT_TOOL_RESULT_INVALID",
+            "the selected writer capability does not authorize the native operation",
+        )
+    items = structure_data.get("items")
+    if not isinstance(items, list) or not _native_operation_is_grounded(operation, items):
+        raise AgentGatewayError(
+            "AGENT_TOOL_RESULT_INVALID",
+            "native locator or expected value was not present in the current structure read",
+        )
+
+
+def _native_operation_is_grounded(
+    operation: DocumentOperation,
+    items: list[Any],
+) -> bool:
+    indexed = [
+        (item.get("locator"), item.get("value"))
+        for item in items
+        if isinstance(item, dict) and isinstance(item.get("locator"), dict)
+    ]
+    if isinstance(operation, SpreadsheetCellsSetOperation):
+        for cell in operation.cells:
+            locator = {
+                "kind": "spreadsheet_cell",
+                "sheet_name": cell.sheet_name,
+                "address": cell.address,
+            }
+            matches = [value for candidate, value in indexed if candidate == locator]
+            if len(matches) != 1 or matches[0] != cell.expected.model_dump(mode="json"):
+                return False
+        return True
+    locator = operation.locator.model_dump(mode="json", exclude_none=True)
+    matches = [value for candidate, value in indexed if candidate == locator]
+    if len(matches) != 1:
+        return False
+    value = matches[0]
+    if isinstance(operation, TextReplaceOperation | TableCellSetOperation):
+        canonical = (
+            json.dumps(value, ensure_ascii=False, sort_keys=True)
+            if isinstance(value, dict | list)
+            else str(value)
+        )
+        return operation.expected in canonical
+    if isinstance(operation, PdfFormFieldSetOperation):
+        return value == operation.expected
+    if isinstance(operation, PdfRedactTextOperation):
+        return operation.expected in str(value)
+    return isinstance(operation, PdfAnnotationAddOperation)
+
+
 def _validated_tool_result_payload(
     tool_use: ToolUseBlock,
     result: ToolResultBlock | None,
@@ -1052,6 +1261,25 @@ def _validated_tool_result_payload(
         )
     payload = _decode_tool_result_payload(result.content)
     provenance = payload.get("provenance") if payload is not None else None
+    if tool_use.name in DOCUMENT_READ_TOOL_NAMES:
+        if (
+            payload is None
+            or set(payload) != {"ok", "code", "retryable", "data", "provenance"}
+            or payload.get("ok") is not True
+            or not isinstance(payload.get("code"), str)
+            or not isinstance(payload.get("retryable"), bool)
+            or not isinstance(provenance, dict)
+            or provenance.get("trust") != "untrusted_content"
+            or provenance.get("graph_version") != expected_graph_version
+            or provenance.get("schema_version") != "1.0.0"
+            or provenance.get("tool") != tool_use.name.removeprefix("mcp__codegate__")
+        ):
+            raise AgentGatewayError(
+                "AGENT_TOOL_RESULT_INVALID",
+                f"Claude document tool result contract is invalid: {tool_use.name}",
+            )
+        _validate_tool_result_shape(tool_use, payload)
+        return payload
     if (
         payload is None
         or payload.get("tool_contract_version") != TOOL_CONTRACT_VERSION
@@ -1145,6 +1373,17 @@ def _validate_tool_result_shape(tool_use: ToolUseBlock, payload: dict[str, Any])
             payload.get("document_id") == requested_document_id
             and isinstance(payload.get("source_sha256"), str)
             and isinstance(payload.get("content"), str)
+        )
+    elif tool_name == "mcp__codegate__document_capabilities_get":
+        data = payload.get("data")
+        valid = isinstance(data, dict) and isinstance(data.get("capabilities"), list)
+    elif tool_name == "mcp__codegate__source_structure_read":
+        data = payload.get("data")
+        valid = (
+            isinstance(data, dict)
+            and data.get("document_id") == requested_document_id
+            and isinstance(data.get("source_sha256"), str)
+            and isinstance(data.get("items"), list)
         )
     if not valid:
         raise AgentGatewayError(

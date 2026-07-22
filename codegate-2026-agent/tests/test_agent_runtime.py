@@ -1,4 +1,5 @@
 import json
+import os
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -77,6 +78,37 @@ def _tool_result_message(
     payload: dict[str, Any],
 ) -> UserMessage:
     return UserMessage(content=[_tool_result_block(tool_use_id, source_kind, payload)])
+
+
+def _document_tool_result_block(
+    tool_use_id: str,
+    tool_name: str,
+    data: dict[str, Any],
+    *,
+    capability_snapshot_id: str,
+    source_sha256: str | None = None,
+) -> ToolResultBlock:
+    return ToolResultBlock(
+        tool_use_id=tool_use_id,
+        content=json.dumps(
+            {
+                "ok": True,
+                "code": "OK",
+                "retryable": False,
+                "data": data,
+                "provenance": {
+                    "trust": "untrusted_content",
+                    "tool": tool_name,
+                    "schema_version": "1.0.0",
+                    "graph_version": "2026-07-21.2-demo",
+                    "capability_snapshot_id": capability_snapshot_id,
+                    "source_sha256": source_sha256,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        is_error=False,
+    )
 
 
 def test_claude_agent_options_disable_builtin_tools() -> None:
@@ -383,8 +415,9 @@ def test_local_session_store_round_trips_entries_with_private_permissions(tmp_pa
 
     assert anyio.run(store.load, key) == entries
     transcript = next((tmp_path / "transcripts").rglob("*.jsonl"))
-    assert transcript.stat().st_mode & 0o777 == 0o600
-    assert transcript.parent.stat().st_mode & 0o777 == 0o700
+    if os.name != "nt":
+        assert transcript.stat().st_mode & 0o777 == 0o600
+        assert transcript.parent.stat().st_mode & 0o777 == 0o700
 
 
 def test_missing_resume_session_starts_a_fresh_server_owned_session(
@@ -635,6 +668,120 @@ def test_ready_change_rejects_missing_current_turn_tool_results() -> None:
             selected_document_id="REG-000001",
         )
 
+    assert raised.value.code == "AGENT_TOOL_RESULT_INVALID"
+
+
+def test_native_document_change_requires_matching_capability_and_structure_provenance() -> None:
+    source_sha = "a" * 64
+    snapshot_id = "b" * 64
+    decision = AgentDecision.model_validate(
+        {
+            "prompt_contract_version": "2.0",
+            "outcome": "ready",
+            "intent": "change",
+            "assistant_text": "문서 변경 미리보기를 준비합니다.",
+            "search_query": "보존 기간",
+            "target_document_id": "REG-000001",
+            "source_sha256": source_sha,
+            "operation": None,
+            "document_operation": {
+                "type": "text.replace/v1",
+                "locator": {"kind": "paragraph", "block_index": 0},
+                "expected": "1년",
+                "replacement": "3년",
+            },
+            "capability_id": "docx.writer.python-docx/v1",
+            "capability_snapshot_id": snapshot_id,
+            "graph_version": "2026-07-21.2-demo",
+        }
+    )
+    tool_uses = [
+        ToolUseBlock(
+            id="tool-1",
+            name="mcp__codegate__document_get",
+            input={"document_id": "REG-000001"},
+        ),
+        ToolUseBlock(
+            id="tool-2",
+            name="mcp__codegate__document_capabilities_get",
+            input={},
+        ),
+        ToolUseBlock(
+            id="tool-3",
+            name="mcp__codegate__source_structure_read",
+            input={"document_id": "REG-000001"},
+        ),
+    ]
+    tool_results = {
+        "tool-1": _tool_result_block(
+            "tool-1",
+            "document_get",
+            {"document": {"document_id": "REG-000001"}},
+        ),
+        "tool-2": _document_tool_result_block(
+            "tool-2",
+            "document_capabilities_get",
+            {
+                "snapshot_id": snapshot_id,
+                "capabilities": [
+                    {
+                        "capability_id": "docx.writer.python-docx/v1",
+                        "format": "docx",
+                        "operations": ["text.replace/v1"],
+                        "active": True,
+                        "mutate": True,
+                    }
+                ],
+            },
+            capability_snapshot_id=snapshot_id,
+        ),
+        "tool-3": _document_tool_result_block(
+            "tool-3",
+            "source_structure_read",
+            {
+                "document_id": "REG-000001",
+                "format": "docx",
+                "source_sha256": source_sha,
+                "capability_snapshot_id": snapshot_id,
+                "graph_version": "2026-07-21.2-demo",
+                "items": [
+                    {
+                        "locator": {"kind": "paragraph", "block_index": 0},
+                        "value": "보존 기간은 1년입니다.",
+                        "value_type": "string",
+                    }
+                ],
+            },
+            capability_snapshot_id=snapshot_id,
+            source_sha256=source_sha,
+        ),
+    }
+
+    _validate_tool_trace(
+        decision,
+        tool_uses,
+        tool_results,
+        expected_graph_version="2026-07-21.2-demo",
+        selected_document_id="REG-000001",
+    )
+
+    tampered = decision.model_copy(
+        update={
+            "document_operation": decision.document_operation.model_copy(
+                update={"expected": "tool result에 없는 값"}
+            )
+            if decision.document_operation is not None
+            else None
+        }
+    )
+    with pytest.raises(AgentGatewayError) as raised:
+        _validate_tool_trace(
+            tampered,
+            tool_uses,
+            tool_results,
+            expected_graph_version="2026-07-21.2-demo",
+            selected_document_id="REG-000001",
+        )
     assert raised.value.code == "AGENT_TOOL_RESULT_INVALID"
 
 

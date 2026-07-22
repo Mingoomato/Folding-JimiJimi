@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": 1,
+  "source_of_truth": {
+    "repository": "dotenv-uploaded/codegate-2026-folding-song",
+    "branch": "main",
+    "integration_base_commit": "639600b",
+    "standalone_repositories": "historical-provenance-only"
+  },
+  "runtime": {
+    "node": "22.x",
+    "python": "3.12.x",
+    "pnpm": "11.9.0",
+    "kordoc": "4.2.5"
+  },
+  "components": [
+    {
+      "id": "desktop",
+      "path": "codegate-2026-local",
+      "owner": "electron-react-vite"
+    },
+    {
+      "id": "agent-sidecar",
+      "path": "codegate-2026-agent",
+      "owner": "fastapi-python"
+    },
+    {
+      "id": "doc2md",
+      "path": "codegate-2026-convert",
+      "owner": "read-only-converter"
+    },
+    {
+      "id": "backend",
+      "path": "codegate-2026-backend",
+      "owner": "cloud-api-and-llmwiki"
+    },
+    {
+      "id": "filesystem",
+      "path": "packages/codegate-filesystem",
+      "owner": "native-sidecars"
+    }
+  ],
+  "document_writers": {
+    "hwpx": "Kordoc 4.2.5",
+    "docx": "python-docx >=1.2,<2",
+    "pptx": "python-pptx >=1.0,<2",
+    "xlsx": "openpyxl >=3.1,<4",
+    "pdf": "PyMuPDF >=1.26,<2"
+  }
+}

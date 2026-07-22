@@ -2,6 +2,7 @@ import {
   type Agent,
   type AgentDeps,
   type AgentEvent,
+  type ApprovalRequest,
   type Citation,
   type ExecutionSummary,
 } from '@contracts';
@@ -9,6 +10,8 @@ import {
   SidecarClient,
   type ChangePlanResponse,
   type ChatResponse,
+  type DocumentExecutionResponse,
+  type DocumentPlanResponse,
   type ExecutionResponse,
 } from '@main/sidecar/client';
 import { sourceUriToRelativePath } from '@main/util/vpath';
@@ -47,6 +50,45 @@ async function* run(
   }
 
   const plan = response.change_plan;
+  const documentPlan = response.document_plan;
+  if (response.response_type === 'change_preview' && documentPlan) {
+    if (!deps.auth.canWrite()) {
+      yield { type: 'auth_error', kind: 'not_provisioned' };
+      yield { type: 'done', citations };
+      return;
+    }
+    const prepared = await client.waitForDocumentPlan(documentPlan, signal);
+    if (prepared.status !== 'pending_approval' || !prepared.plan_hash) {
+      const detail = prepared.error?.message ?? `plan status: ${prepared.status}`;
+      yield { type: 'text_delta', text: `\n\n문서 미리보기를 준비하지 못했습니다: ${detail}` };
+      yield { type: 'done', citations };
+      return;
+    }
+    const request = await documentApprovalRequest(client, prepared, signal);
+    yield {
+      type: 'approval_request',
+      diff: request.diff,
+      target: request.target,
+    };
+    const approved = await deps.approvalHandler(request);
+    if (!approved) {
+      await client.rejectDocumentPlan(prepared, signal);
+      yield { type: 'text_delta', text: '\n\n문서 변경을 거절했습니다. 원본은 수정되지 않았습니다.' };
+      yield { type: 'done', citations };
+      return;
+    }
+    yield {
+      type: 'tool_start',
+      name: 'approve_document_change_v2',
+      summary: '승인된 native artifact 적용 및 LLMWIKI 동기화',
+    };
+    const execution = await client.approveDocumentPlan(prepared, signal);
+    const completed = await client.waitForDocumentExecution(execution, signal);
+    yield { type: 'text_delta', text: `\n\n${documentExecutionMessage(completed)}` };
+    yield { type: 'done', citations, execution: documentExecutionSummary(completed) };
+    return;
+  }
+
   if (response.response_type === 'change_preview' && plan) {
     if (!deps.auth.canWrite()) {
       yield { type: 'auth_error', kind: 'not_provisioned' };
@@ -77,6 +119,57 @@ async function* run(
   yield { type: 'done', citations };
 }
 
+async function documentApprovalRequest(
+  client: SidecarClient,
+  plan: DocumentPlanResponse,
+  signal?: AbortSignal,
+): Promise<ApprovalRequest> {
+  const pairs = await Promise.all(
+    (plan.preview_manifest?.pairs ?? []).map(async (pair) => ({
+      label: pair.locator_label,
+      beforeDataUrl: pair.before_artifact_id
+        ? await client.previewDataUrl(plan.change_plan_id, pair.before_artifact_id, signal)
+        : undefined,
+      afterDataUrl: pair.after_artifact_id
+        ? await client.previewDataUrl(plan.change_plan_id, pair.after_artifact_id, signal)
+        : undefined,
+      summaryOnly: pair.summary_only,
+    })),
+  );
+  const diff = plan.structural_diff
+    .map((item) => `${JSON.stringify(item.locator)}\n- ${JSON.stringify(item.before)}\n+ ${JSON.stringify(item.after)}`)
+    .join('\n\n');
+  const target =
+    plan.target_relative_path ?? sourceUriToRelativePath(plan.source_uri ?? '') ?? plan.source_uri ?? '';
+  return {
+    tool: 'approve_document_change_v2',
+    target,
+    diff,
+    rationale: `검증할 plan_hash: ${plan.plan_hash}`,
+    changePlanId: plan.change_plan_id,
+    planHash: plan.plan_hash ?? undefined,
+    documentPreview: {
+      format: plan.format,
+      capabilityId: plan.capability_id,
+      writerFingerprint: plan.writer_fingerprint ?? undefined,
+      rendererFingerprint: plan.renderer_fingerprint ?? undefined,
+      sourceSha256: plan.base_sha256 ?? undefined,
+      proposedSha256: plan.proposed_sha256 ?? undefined,
+      targetRelativePath: target,
+      warnings: plan.warnings,
+      structuralDiff: plan.structural_diff.map((item) => ({
+        operationIndex: item.operation_index,
+        operationType: item.operation_type,
+        locator: item.locator,
+        before: item.before,
+        after: item.after,
+      })),
+      images: pairs,
+      truncatedCount: plan.preview_manifest?.truncated_count ?? 0,
+    },
+  };
+}
+
 function approvalRequest(plan: ChangePlanResponse) {
   return {
     tool: 'approve_change_plan',
@@ -85,6 +178,39 @@ function approvalRequest(plan: ChangePlanResponse) {
     rationale: `검증할 plan_hash: ${plan.plan_hash}`,
     changePlanId: plan.change_plan_id,
     planHash: plan.plan_hash,
+  };
+}
+
+function documentExecutionMessage(execution: DocumentExecutionResponse): string {
+  if (execution.status === 'completed') {
+    return '문서 artifact를 적용하고 LLMWIKI 새 버전까지 게시했습니다.';
+  }
+  if (execution.status === 'sync_failed') {
+    return `파일은 적용됐지만 LLMWIKI 동기화가 실패했습니다: ${execution.error?.message ?? 'retry-sync 필요'}`;
+  }
+  if (execution.status === 'undone') return '문서 변경을 복구하고 새 graph version을 게시했습니다.';
+  if (execution.error) return `문서 변경 처리에 실패했습니다: ${execution.error.message}`;
+  return `문서 변경 처리가 ${execution.status} 상태에서 종료되었습니다.`;
+}
+
+function documentExecutionSummary(execution: DocumentExecutionResponse): ExecutionSummary {
+  const terminal = new Set(['completed', 'sync_failed', 'conflict', 'failed', 'undone']).has(
+    execution.status,
+  );
+  return {
+    executionId: execution.execution_id,
+    documentId: execution.document_id,
+    status: execution.status,
+    stage:
+      execution.status === 'sync_failed'
+        ? 'sync_retryable'
+        : execution.status === 'completed'
+          ? 'published'
+          : execution.status,
+    terminal,
+    error: execution.error ?? undefined,
+    canRetry: execution.status === 'sync_failed',
+    canUndo: execution.status === 'completed',
   };
 }
 

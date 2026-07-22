@@ -6,11 +6,12 @@ import json
 import math
 import re
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from codegate_api.documents.models import DocumentContentChangedV2
 from codegate_api.files.atomic import SafeSourceFileStore
 from codegate_api.integrations.doc2md import ConversionSection, Doc2MdClient, Doc2MdError
 from codegate_api.knowledge.catalog import KnowledgeCatalog, KnowledgeCatalogError
@@ -168,6 +169,236 @@ class LocalKnowledgePipeline:
                             message=failure_message,
                             retryable=failure_retryable,
                         )
+
+    async def process_document_event(self, payload_data: dict[str, Any]) -> str:
+        """Rebuild one complete document from its approved final source artifact."""
+
+        payload = DocumentContentChangedV2.model_validate(payload_data)
+        async with self._lock:
+            for _ in range(4):
+                parent_version = self._catalog.snapshot().version
+                candidate = self._catalog.stage(parent_version)
+                try:
+                    changed = await asyncio.to_thread(
+                        self._apply_document_v2,
+                        candidate,
+                        payload,
+                    )
+                    if not changed:
+                        self._catalog.discard(candidate)
+                        return parent_version
+                    event_ids = [payload.event_id]
+                    stage_results = await asyncio.gather(
+                        asyncio.to_thread(self._build_fts, candidate),
+                        asyncio.to_thread(self._build_vectors, candidate),
+                        asyncio.to_thread(self._build_graph, candidate),
+                        return_exceptions=True,
+                    )
+                    for result in stage_results:
+                        if isinstance(result, BaseException):
+                            raise result
+                    candidate_version = _candidate_version(parent_version, event_ids)
+                    await asyncio.to_thread(
+                        self._finalize_candidate,
+                        candidate,
+                        parent_version,
+                        candidate_version,
+                        event_ids,
+                    )
+                    await asyncio.to_thread(self._catalog.validate_candidate, candidate)
+                    if payload.after_sha256 is not None:
+                        live = await asyncio.to_thread(self._files.snapshot, payload.source_uri)
+                        if live.sha256 != payload.after_sha256:
+                            raise SyncPipelineError(
+                                "SOURCE_HASH_CONFLICT",
+                                "source changed during document synchronization",
+                            )
+                    published = await asyncio.to_thread(
+                        self._catalog.publish,
+                        candidate,
+                        expected_parent_version=parent_version,
+                        candidate_version=candidate_version,
+                    )
+                    if not published:
+                        self._catalog.discard(candidate)
+                        self._catalog.refresh()
+                        await asyncio.sleep(0)
+                        continue
+                    self._state.record_knowledge_version(
+                        version=candidate_version,
+                        parent_version=parent_version,
+                        event_ids=event_ids,
+                        status="active",
+                    )
+                    return candidate_version
+                except BaseException:
+                    self._catalog.discard(candidate)
+                    raise
+            raise SyncPipelineError(
+                "PUBLISH_CAS_EXHAUSTED",
+                "document synchronization could not publish after four rebases",
+            )
+
+    def _apply_document_v2(
+        self,
+        candidate: Path,
+        payload: DocumentContentChangedV2,
+    ) -> bool:
+        manifest_path = candidate / "manifest.jsonl"
+        chunks_path = candidate / "retrieval/chunks.jsonl"
+        links_path = candidate / "retrieval/links.jsonl"
+        manifests = _read_jsonl(manifest_path)
+        chunks = _read_jsonl(chunks_path)
+        links = _read_jsonl(links_path)
+        manifest_by_id = {str(item["id"]): item for item in manifests}
+        current = manifest_by_id.get(payload.document_id)
+
+        if payload.change_kind == "recovery_remove":
+            if current is None:
+                return False
+            if payload.before_sha256 != current["source"]["sha256"]:
+                raise SyncPipelineError("EVENT_BASE_CONFLICT", "creation Undo base hash mismatch")
+            manifests = [item for item in manifests if item["id"] != payload.document_id]
+            chunks = [item for item in chunks if item["document_id"] != payload.document_id]
+            links = [
+                item
+                for item in links
+                if item["source_id"] != payload.document_id
+                and item["target_id"] != payload.document_id
+            ]
+            canonical = candidate / current["canonical_path"]
+            reference = candidate / f"references/{payload.document_id}.source.json"
+            canonical.unlink(missing_ok=True)
+            reference.unlink(missing_ok=True)
+            _write_jsonl(manifest_path, manifests)
+            _write_jsonl(chunks_path, chunks)
+            _write_jsonl(links_path, links)
+            return True
+
+        if payload.after_sha256 is None:
+            raise SyncPipelineError("EVENT_HASH_MISSING", "changed document has no after hash")
+        source = self._files.snapshot(payload.source_uri)
+        if source.sha256 != payload.after_sha256:
+            raise SyncPipelineError("SOURCE_HASH_CONFLICT", "live source does not match event")
+        if payload.change_kind == "update":
+            if current is None:
+                raise SyncPipelineError("UNKNOWN_DOCUMENT", "update references unknown document")
+            if current["source"]["uri"] != payload.source_uri:
+                raise SyncPipelineError("SOURCE_URI_CONFLICT", "update source URI differs")
+            if current["source"]["sha256"] == payload.after_sha256:
+                return False
+            if current["source"]["sha256"] != payload.before_sha256:
+                raise SyncPipelineError("EVENT_BASE_CONFLICT", "update base hash mismatch")
+            revision = _next_revision(str(current["revision"]))
+            manifest = current
+        else:
+            if current is not None:
+                if current["source"]["sha256"] == payload.after_sha256:
+                    return False
+                raise SyncPipelineError(
+                    "DOCUMENT_SET_CONFLICT", "create may add only one new document"
+                )
+            revision = "1"
+            manifest = _new_manifest_v2(payload, revision)
+            manifests.append(manifest)
+            manifest_by_id[payload.document_id] = manifest
+
+        file_version_id = "dfv_" + payload.after_sha256[:24]
+        converted_body: str
+        converted_sections: tuple[ConversionSection, ...]
+        converter_name = "local-text-adapter"
+        converter_version = "1.0.0"
+        if self._doc2md is not None:
+            converted_manifest = ManifestEntry.model_validate(manifest).model_copy(
+                update={
+                    "revision": revision,
+                    "file_version_id": file_version_id,
+                    "source": ManifestEntry.model_validate(manifest).source.model_copy(
+                        update={"sha256": payload.after_sha256}
+                    ),
+                }
+            )
+            converted = self._doc2md.convert(
+                converted_manifest,
+                expected_source_sha256=payload.after_sha256,
+            )
+            converted_body = converted.body
+            converted_sections = converted.sections
+            converter_name = converted.converter
+            converter_version = converted.converter_version or "unknown"
+        elif payload.format.value in {"hwp", "hwpx", "docx", "pptx", "xlsx", "pdf"}:
+            raise SyncPipelineError(
+                "CONVERTER_UNAVAILABLE",
+                "doc2md is required to synchronize binary document formats",
+                retryable=True,
+            )
+        else:
+            try:
+                converted_body = source.content.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise SyncPipelineError(
+                    "CONVERTER_UNAVAILABLE", "binary source requires doc2md"
+                ) from error
+            converted_sections = ()
+
+        title, canonical_text, document_chunks = _canonical_and_chunks_v2(
+            document_id=payload.document_id,
+            revision=revision,
+            file_version_id=file_version_id,
+            body=converted_body,
+            sections=converted_sections,
+            fallback_title=str(manifest["title"]),
+        )
+        canonical_path = candidate / str(manifest["canonical_path"])
+        canonical_path.parent.mkdir(parents=True, exist_ok=True)
+        canonical_path.write_text(canonical_text, encoding="utf-8", newline="\n")
+        chunks = [item for item in chunks if item["document_id"] != payload.document_id]
+        chunks.extend(document_chunks)
+        links = [
+            item
+            for item in links
+            if item["source_id"] != payload.document_id and item["target_id"] != payload.document_id
+        ]
+        manifest.update(
+            {
+                "title": title,
+                "revision": revision,
+                "file_version_id": file_version_id,
+                "status": "active",
+                "source": {
+                    "filename": PurePosixPath(payload.source_uri.split("source://", 1)[-1]).name,
+                    "uri": payload.source_uri,
+                    "media_type": _media_type_v2(payload.format.value),
+                    "sha256": payload.after_sha256,
+                },
+                "conversion": {
+                    "converter": converter_name,
+                    "conversion_version": converter_version,
+                    "converted_at": datetime.now(UTC).isoformat(),
+                    "status": "succeeded",
+                },
+            }
+        )
+        reference = candidate / f"references/{payload.document_id}.source.json"
+        reference.parent.mkdir(parents=True, exist_ok=True)
+        reference.write_text(
+            _json(
+                {
+                    "schema_version": "1.0.0",
+                    "kind": "source_reference",
+                    "document_id": payload.document_id,
+                    "source_uri": payload.source_uri,
+                    "source_sha256": payload.after_sha256,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        _write_jsonl(manifest_path, manifests)
+        _write_jsonl(chunks_path, chunks)
+        _write_jsonl(links_path, links)
+        return True
 
     async def _build_candidate(
         self,
@@ -606,3 +837,138 @@ def _restore_section_anchors(
         ):
             raise ValueError(f"doc2md evidence section mapping is invalid: {document_id}")
     return rendered
+
+
+def _new_manifest_v2(payload: DocumentContentChangedV2, revision: str) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "id": payload.document_id,
+        "file_version_id": "dfv_" + (payload.after_sha256 or "0" * 64)[:24],
+        "title": payload.document_id,
+        "doc_type": "general",
+        "language": "ko",
+        "revision": revision,
+        "status": "active",
+        "official_number": None,
+        "authority_level": "user-approved",
+        "issuing_org": None,
+        "issued_on": None,
+        "effective_from": None,
+        "effective_to": None,
+        "source": {
+            "filename": PurePosixPath(payload.source_uri.split("source://", 1)[-1]).name,
+            "uri": payload.source_uri,
+            "media_type": _media_type_v2(payload.format.value),
+            "sha256": payload.after_sha256,
+        },
+        "canonical_path": f"docs/general/{payload.document_id}.md",
+        "access": "internal",
+        "write_access": "allowed",
+        "editability": "editable",
+        "tags": [],
+        "aliases": [],
+        "conversion": {
+            "converter": "pending",
+            "conversion_version": "pending",
+            "converted_at": None,
+            "status": "pending",
+        },
+    }
+
+
+def _canonical_and_chunks_v2(
+    *,
+    document_id: str,
+    revision: str,
+    file_version_id: str,
+    body: str,
+    sections: tuple[ConversionSection, ...],
+    fallback_title: str,
+) -> tuple[str, str, list[dict[str, Any]]]:
+    normalized = body.replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+    title_match = re.search(r"^#\s+(.+)$", normalized, flags=re.MULTILINE)
+    title = title_match.group(1).strip() if title_match else fallback_title
+    chunks: list[dict[str, Any]] = []
+    if sections:
+        insertions: list[tuple[int, str]] = []
+        for index, section in enumerate(sections):
+            section_id = section.stable_key
+            insertions.append((section.char_start, f'<a id="{section_id}"></a>\n'))
+            text = normalized[section.char_start : min(section.char_end, len(normalized))].strip()
+            heading_path = list(section.heading_path) or [title]
+            if not text:
+                text = heading_path[-1]
+            chunks.append(
+                _chunk_v2(
+                    document_id=document_id,
+                    revision=revision,
+                    file_version_id=file_version_id,
+                    section_id=section_id,
+                    heading_path=heading_path,
+                    text=text,
+                    ordinal=index,
+                    title=title,
+                )
+            )
+        canonical = normalized
+        for offset, anchor in sorted(insertions, reverse=True):
+            canonical = canonical[:offset] + anchor + canonical[offset:]
+    else:
+        section_id = "sec-001"
+        heading_path = [title]
+        canonical = normalized
+        if title_match:
+            line_end = canonical.find("\n", title_match.end()) + 1
+            canonical = canonical[:line_end] + f'<a id="{section_id}"></a>\n' + canonical[line_end:]
+        else:
+            canonical = f'# {title}\n<a id="{section_id}"></a>\n\n{canonical}'
+        chunks.append(
+            _chunk_v2(
+                document_id=document_id,
+                revision=revision,
+                file_version_id=file_version_id,
+                section_id=section_id,
+                heading_path=heading_path,
+                text=normalized.strip() or title,
+                ordinal=0,
+                title=title,
+            )
+        )
+    return title, canonical, chunks
+
+
+def _chunk_v2(
+    *,
+    document_id: str,
+    revision: str,
+    file_version_id: str,
+    section_id: str,
+    heading_path: list[str],
+    text: str,
+    ordinal: int,
+    title: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "chunk_id": _chunk_id(document_id, revision, section_id, ordinal),
+        "document_id": document_id,
+        "file_version_id": file_version_id,
+        "section_id": section_id,
+        "section": heading_path[-1],
+        "heading_path": heading_path,
+        "text": text,
+        "embedding_text": " ".join([title, *heading_path, text]),
+        "text_sha256": _sha256(text.encode("utf-8")),
+        "ordinal": ordinal,
+    }
+
+
+def _media_type_v2(format_: str) -> str:
+    return {
+        "hwp": "application/x-hwp",
+        "hwpx": "application/vnd.hancom.hwpx",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "pdf": "application/pdf",
+    }[format_]

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     knowledge_pointer_path: Path = Path(".runtime/demo/knowledge/CURRENT")
     database_path: Path = Path(".runtime/codegate.sqlite3")
     backup_root: Path = Path(".runtime/backups")
+    document_artifact_root: Path = Path(".runtime/document-artifacts")
+    document_recovery_root: Path = Path(".runtime/recovery")
+    document_template_root: Path | None = None
     agent_state_root: Path = Path(".runtime/claude")
     railway_volume_mount_path: Path | None = Field(
         default=None,
@@ -46,6 +49,20 @@ class Settings(BaseSettings):
     doc2md_source_kind: Literal["path", "bytes"] = "path"
     doc2md_api_token: SecretStr | None = Field(default=None, min_length=16)
     doc2md_max_source_bytes: int = Field(default=33_554_432, ge=1, le=33_554_432)
+    document_max_source_bytes: int = Field(default=33_554_432, ge=1, le=268_435_456)
+    document_max_result_bytes: int = Field(default=67_108_864, ge=1, le=536_870_912)
+    document_max_preview_bytes: int = Field(default=20_971_520, ge=1, le=104_857_600)
+    document_max_zip_parts: int = Field(default=5_000, ge=1, le=100_000)
+    document_max_zip_expanded_bytes: int = Field(
+        default=268_435_456,
+        ge=1,
+        le=1_073_741_824,
+    )
+    libreoffice_bin: Path | None = None
+    node_bin: Path | None = None
+    kordoc_workspace_root: Path | None = None
+    document_worker_timeout_seconds: float = Field(default=60.0, ge=1.0, le=300.0)
+    document_retention_days: int = Field(default=30, ge=1, le=365)
 
     knowledge_mode: Literal["codegate", "llmwiki"] = "codegate"
     llmwiki_project_root: Path | None = None
@@ -106,6 +123,8 @@ class Settings(BaseSettings):
             self.knowledge_pointer_path = mount / "knowledge/CURRENT"
             self.database_path = mount / "codegate.sqlite3"
             self.backup_root = mount / "backups"
+            self.document_artifact_root = mount / "document-artifacts"
+            self.document_recovery_root = mount / "recovery"
             self.agent_state_root = mount / "claude"
         if self.knowledge_mode == "llmwiki":
             missing = [
@@ -172,6 +191,8 @@ class Settings(BaseSettings):
                 self.resolved_knowledge_pointer_path().parent,
                 self.resolved_database_path().parent,
                 self.resolved_backup_root(),
+                self.resolved_document_artifact_root(),
+                self.resolved_document_recovery_root(),
                 self.resolved_agent_state_root(),
             }
             if any(not path.is_relative_to(resolved_mount) for path in mutable_paths):
@@ -201,6 +222,32 @@ class Settings(BaseSettings):
 
     def resolved_backup_root(self) -> Path:
         return self.backup_root.expanduser().resolve()
+
+    def resolved_document_artifact_root(self) -> Path:
+        return self.document_artifact_root.expanduser().resolve()
+
+    def resolved_document_recovery_root(self) -> Path:
+        return self.document_recovery_root.expanduser().resolve()
+
+    def resolved_document_template_root(self) -> Path | None:
+        return (
+            self.document_template_root.expanduser().resolve()
+            if self.document_template_root is not None
+            else None
+        )
+
+    def resolved_libreoffice_bin(self) -> Path | None:
+        return self.libreoffice_bin.expanduser().resolve() if self.libreoffice_bin else None
+
+    def resolved_node_bin(self) -> Path | None:
+        return self.node_bin.expanduser().resolve() if self.node_bin else None
+
+    def resolved_kordoc_workspace_root(self) -> Path | None:
+        return (
+            self.kordoc_workspace_root.expanduser().resolve()
+            if self.kordoc_workspace_root
+            else None
+        )
 
     def resolved_agent_state_root(self) -> Path:
         return self.agent_state_root.expanduser().resolve()

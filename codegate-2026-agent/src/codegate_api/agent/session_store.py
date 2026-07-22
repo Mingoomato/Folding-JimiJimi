@@ -9,6 +9,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from claude_agent_sdk import SessionKey, SessionStoreEntry, project_key_for_directory
+from codegate_filesystem import restrict_to_current_user
 
 
 class LocalJsonlSessionStore:
@@ -57,8 +58,12 @@ class LocalJsonlSessionStore:
     @staticmethod
     def _append_sync(target: Path, payload: bytes) -> None:
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(target.parent, 0o700)
-        descriptor = os.open(target, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        restrict_to_current_user(target.parent, directory=True)
+        descriptor = os.open(
+            target,
+            os.O_APPEND | os.O_CREAT | os.O_WRONLY | getattr(os, "O_BINARY", 0),
+            0o600,
+        )
         try:
             view = memoryview(payload)
             while view:
@@ -69,7 +74,7 @@ class LocalJsonlSessionStore:
             os.fsync(descriptor)
         finally:
             os.close(descriptor)
-        os.chmod(target, 0o600)
+        restrict_to_current_user(target)
 
     @staticmethod
     def _load_sync(target: Path) -> list[SessionStoreEntry] | None:

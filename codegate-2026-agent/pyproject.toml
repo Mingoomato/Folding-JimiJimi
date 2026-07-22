@@ -6,16 +6,25 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "claude-agent-sdk>=0.2.124,<0.3",
+  "codegate-filesystem",
   "fastapi>=0.116.0,<1",
   "httpx>=0.28.0,<0.29",
   "jsonschema>=4.23.0,<5",
   "markdown-it-py>=3.0,<4",
+  "defusedxml>=0.7,<1",
+  "openpyxl>=3.1,<4",
+  "PyMuPDF>=1.26,<2",
   "PyJWT[crypto]>=2.13.0,<3",
+  "python-docx>=1.2,<2",
+  "python-pptx>=1.0,<2",
   "pydantic-settings>=2.10.0,<3",
   "python-dotenv>=1.1,<2",
   "PyYAML>=6.0,<7",
   "uvicorn[standard]>=0.35.0,<1",
 ]
+
+[tool.uv.sources]
+codegate-filesystem = { path = "../packages/codegate-filesystem", editable = true }
 
 [project.scripts]
 codegate-local = "codegate_api.cli:main"
@@ -27,7 +36,9 @@ dev = [
   "pytest>=8.4.0,<10",
   "pytest-cov>=6.2.0,<8",
   "ruff>=0.12.0,<1",
+  "types-defusedxml>=0.7.0.20250822",
   "types-jsonschema>=4.23.0,<5",
+  "types-openpyxl>=3.1.5.20250919",
   "types-PyYAML>=6.0.0,<7",
 ]
 

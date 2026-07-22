@@ -1,6 +1,6 @@
 # CODEGATE 2026 통합 로컬 문서 에이전트
 
-`dotenv-uploaded` 조직의 네 저장소를 실제 통합 브랜치 기준으로 결합한 개발 실행본이다.
+`dotenv-uploaded/codegate-2026-folding-song`의 `main`을 유일한 기준선으로 사용하는 monorepo다.
 사용자가 선택한 로컬 문서를 Markdown으로 변환하고, 불변 LLMWIKI 색인을 만든 뒤, 근거가 있는
 검색·질의와 **미리보기 → 승인 → 반영 → Undo** 방식의 수정을 제공한다.
 
@@ -26,12 +26,12 @@ flowchart LR
 | `codegate-2026-agent` | 검색, Gemini 답변, 변경 계획, 승인·실행·Undo를 담당하는 FastAPI sidecar |
 | `codegate-2026-backend` | Google OAuth cloud-api, LLMWIKI builder, 구형 local-runtime 계약 |
 
-원본 브랜치와 SHA는 [`UPSTREAM_SOURCES.md`](UPSTREAM_SOURCES.md), 통합 수정 내역은
-[`CHANGELOG_INTEGRATION.md`](CHANGELOG_INTEGRATION.md)에 기록했다.
+기계 기준선과 고정 런타임은 [`component-manifest.json`](component-manifest.json), 과거 유입
+브랜치와 SHA는 [`UPSTREAM_SOURCES.md`](UPSTREAM_SOURCES.md)에 기록했다.
 
 ## 요구 사항
 
-- Node.js 22 이상
+- Node.js 22.x
 - pnpm 11.9.0
 - `uv`
 - Python 3.12
@@ -138,5 +138,6 @@ pnpm smoke
   조용히 유지하지 않고, 충돌 없는 단일 workspace로 제한했다.
 - 이 결과물은 소스 개발 실행본이다. Python sidecar와 OCR 런타임을 포함한 서명된 DMG/EXE 배포
   패키지는 별도 릴리스 작업이 필요하다.
-- Markdown/TXT 변경 경로는 승인·Undo까지 검증된다. HWP/HWPX 원본 쓰기 기능은 아직 기준 Agent
-  브랜치에 병합되지 않았으므로 읽기·검색 대상으로만 취급한다.
+- HWPX, DOCX, PPTX, XLSX, PDF는 API v2의 capability·preflight artifact·렌더 승인·적용·Undo·
+  LLMWIKI 동기화 경계를 사용한다. `.hwp` 원본은 수정하지 않고 HWPX 파생본만 생성한다.
+- 서명·암호화·macro/ActiveX/OLE 또는 지원 불명 OPC 구조는 fail-closed로 읽기 전용 처리한다.

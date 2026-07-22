@@ -28,6 +28,7 @@ export function ApprovalModal({
 }) {
   if (!pending) return null;
   const { request } = pending;
+  const preview = request.documentPreview;
 
   return (
     <Dialog open>
@@ -46,7 +47,9 @@ export function ApprovalModal({
           description={
             <span className="flex items-center gap-1.5">
               <FileWarning size={14} className="shrink-0 text-amber-500" />
-              승인하면 원본 문서가 바뀝니다. 수정 전 백업이 만들어집니다.
+              {request.tool === 'create_document'
+                ? '승인하면 선택한 경로에 새 파일을 만들고 LLMWIKI를 동기화합니다.'
+                : '승인하면 원본 문서가 바뀝니다. 수정 전 백업이 만들어집니다.'}
             </span>
           }
         />
@@ -83,22 +86,136 @@ export function ApprovalModal({
             </div>
           )}
 
-          <DiffView diff={request.diff} />
+          {preview && (
+            <>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <Metadata label="형식" value={preview.format.toUpperCase()} />
+                <Metadata label="Capability" value={preview.capabilityId} />
+                <Metadata label="Writer" value={preview.writerFingerprint ?? '확인 불가'} />
+                <Metadata label="Renderer" value={preview.rendererFingerprint ?? '확인 불가'} />
+                {preview.sourceSha256 && (
+                  <Metadata label="Source SHA-256" value={preview.sourceSha256} />
+                )}
+                {preview.proposedSha256 && (
+                  <Metadata label="Artifact SHA-256" value={preview.proposedSha256} />
+                )}
+              </div>
+
+              {preview.warnings.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {preview.warnings.map((warning) => (
+                    <div key={warning}>{warning}</div>
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <div className="fold-eyebrow mb-1.5">구조 변경</div>
+                <div className="flex flex-col gap-2">
+                  {preview.structuralDiff.map((item) => (
+                    <div
+                      key={`${item.operationIndex}:${item.operationType}`}
+                      className="rounded-md border border-ink-100 bg-white px-3 py-2 text-xs"
+                    >
+                      <div className="mb-1 font-mono text-ink-700">{item.operationType}</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <ValueBlock label="변경 전" value={item.before} />
+                        <ValueBlock label="변경 후" value={item.after} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {preview.images.length > 0 && (
+                <div>
+                  <div className="fold-eyebrow mb-1.5">렌더 비교</div>
+                  <div className="flex flex-col gap-3">
+                    {preview.images.map((pair) => (
+                      <div key={pair.label} className="rounded-md border border-ink-100 p-2">
+                        <div className="mb-2 text-xs font-medium text-ink-700">{pair.label}</div>
+                        {pair.summaryOnly ? (
+                          <div className="text-xs text-ink-500">요약만 제공되는 변경입니다.</div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            <PreviewImage label="변경 전" dataUrl={pair.beforeDataUrl} />
+                            <PreviewImage label="변경 후" dataUrl={pair.afterDataUrl} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {preview.truncatedCount > 0 && (
+                      <div className="text-xs text-ink-500">
+                        추가 변경 {preview.truncatedCount}개는 렌더 한도 때문에 구조 diff로만 표시됩니다.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {!preview && <DiffView diff={request.diff} />}
         </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={onReject}>
             거부
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => window.codegate.shell.openOriginal(request.target)}
-          >
-            원본 보기
-          </Button>
+          {request.tool !== 'create_document' && (
+            <Button
+              variant="secondary"
+              onClick={() => window.codegate.shell.openOriginal(request.target)}
+            >
+              원본 보기
+            </Button>
+          )}
           <Button onClick={onApprove}>승인</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+function Metadata({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md bg-ink-50 px-3 py-2">
+      <div className="fold-eyebrow mb-1">{label}</div>
+      <div data-selectable className="break-all font-mono text-2xs text-ink-700">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ValueBlock({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="min-w-0 rounded bg-ink-50 px-2 py-1.5">
+      <div className="mb-1 text-2xs text-ink-400">{label}</div>
+      <pre data-selectable className="whitespace-pre-wrap break-words font-mono text-2xs text-ink-700">
+        {formatValue(value)}
+      </pre>
+    </div>
+  );
+}
+
+function PreviewImage({ label, dataUrl }: { label: string; dataUrl?: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 text-2xs text-ink-400">{label}</div>
+      {dataUrl ? (
+        <img src={dataUrl} alt={`${label} 문서 미리보기`} className="w-full rounded border" />
+      ) : (
+        <div className="flex min-h-24 items-center justify-center rounded bg-ink-50 text-xs text-ink-400">
+          없음
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === undefined) return '없음';
+  return JSON.stringify(value, null, 2) ?? String(value);
 }

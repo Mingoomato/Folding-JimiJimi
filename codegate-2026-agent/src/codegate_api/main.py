@@ -10,7 +10,16 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from codegate_api.api import auth_session, change_plans, chat, demo, documents, executions, health
+from codegate_api.api import (
+    auth_session,
+    change_plans,
+    chat,
+    demo,
+    documents,
+    documents_v2,
+    executions,
+    health,
+)
 from codegate_api.config import Settings, get_settings
 from codegate_api.container import build_container
 from codegate_api.docs_page import render_api_docs
@@ -123,7 +132,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "Retry-After": str(auth_ip_rate_limiter.retry_after_seconds),
                 },
             )
-        if request.method == "POST" and request.url.path == "/api/v1/chat/messages":
+        if request.method == "POST" and request.url.path in {
+            "/api/v1/chat/messages",
+            "/api/v2/chat/messages",
+        }:
             caller_identity = _normalized_caller_identity(authorization, client_host)
             allowed_by_ip = await chat_ip_rate_limiter.allow(f"ip:{client_host}")
             allowed_by_caller = await chat_rate_limiter.allow(caller_identity)
@@ -169,6 +181,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(change_plans.router, prefix="/api/v1")
     application.include_router(executions.router, prefix="/api/v1")
     application.include_router(demo.router, prefix="/api/v1")
+    application.include_router(documents_v2.router, prefix="/api/v2")
     return application
 
 

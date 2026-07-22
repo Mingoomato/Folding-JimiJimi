@@ -6,11 +6,12 @@
  * (스펙 v1.4 §5 silent fail 금지).
  */
 import path from 'node:path';
-import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
+import { randomUUID } from 'node:crypto';
+import { dialog, ipcMain, shell, type BrowserWindow } from 'electron';
 import { IPC, type LlmKeyInput, type LlmProvider, type LoginRequest } from '@contracts';
 import type { AppServices } from '@main/services';
-import { GENERATED_EXTENSION, titleFromMarkdown, writeHwpx } from '@main/kordoc/generate';
-import { fillTemplate } from '@main/kordoc/template';
+import { GENERATED_EXTENSION, titleFromMarkdown } from '@main/kordoc/generate';
+import type { DocumentPlanResponse } from '@main/sidecar/client';
 import { logError, toUserMessage } from '@main/util/errors';
 
 /** 핸들러를 감싸 오류를 한국어 문장으로 정규화한다. */
@@ -162,14 +163,87 @@ export function registerIpcHandlers(
    */
   handle(IPC.documentSaveHwpx, '한글 문서를 저장하지 못했습니다.', async (markdown: string) => {
     const window = getWindow();
+    const rootPath = services.primaryRootPath();
+    if (!rootPath) throw new Error('먼저 문서를 저장할 작업 폴더를 등록해 주세요.');
     const suggested = `${titleFromMarkdown(markdown)}${GENERATED_EXTENSION}`;
     const result = await dialog.showSaveDialog(window ?? undefined!, {
       title: '한글 문서로 저장',
-      defaultPath: path.join(services.primaryRootPath() ?? app.getPath('documents'), suggested),
+      defaultPath: path.join(rootPath, suggested),
       filters: [{ name: '한글 문서', extensions: ['hwpx'] }],
     });
     if (result.canceled || !result.filePath) return null;
-    await writeHwpx({ targetPath: result.filePath, markdown });
+
+    const targetRelativePath = confinedRelativePath(rootPath, result.filePath, '.hwpx');
+    const registry = await services.sidecar.documentCapabilities();
+    const capability = registry.capabilities.find(
+      (item) => item.format === 'hwpx' && item.active && item.create,
+    );
+    if (!capability) {
+      const reason = registry.capabilities
+        .find((item) => item.format === 'hwpx')
+        ?.disabled_reasons.join('; ');
+      throw new Error(reason || 'HWPX writer 또는 renderer를 사용할 수 없습니다.');
+    }
+    const health = await services.sidecar.health();
+    const queued = await services.sidecar.createDocumentPlan({
+      document_id: `DOC-${randomUUID().toUpperCase()}`,
+      format: 'hwpx',
+      capability_id: capability.capability_id,
+      capability_snapshot_id: registry.snapshot_id,
+      graph_version: health.knowledge_version,
+      target_relative_path: targetRelativePath,
+      payload: { type: 'document.create_from_markdown/v1', markdown },
+    });
+    const plan = await services.sidecar.waitForDocumentPlan(queued);
+    requirePendingApproval(plan);
+    const images = await Promise.all(
+      (plan.preview_manifest?.pairs ?? []).map(async (pair) => ({
+        label: pair.locator_label,
+        beforeDataUrl: pair.before_artifact_id
+          ? await services.sidecar.previewDataUrl(plan.change_plan_id, pair.before_artifact_id)
+          : undefined,
+        afterDataUrl: pair.after_artifact_id
+          ? await services.sidecar.previewDataUrl(plan.change_plan_id, pair.after_artifact_id)
+          : undefined,
+        summaryOnly: pair.summary_only,
+      })),
+    );
+    const approved = await services.approval.request({
+      tool: 'create_document',
+      target: targetRelativePath,
+      diff: JSON.stringify(plan.structural_diff, null, 2),
+      rationale: '승인한 proposed artifact만 CREATE_NEW로 적용하고 LLMWIKI를 재색인합니다.',
+      changePlanId: plan.change_plan_id,
+      planHash: plan.plan_hash ?? undefined,
+      documentPreview: {
+        format: plan.format,
+        capabilityId: plan.capability_id,
+        writerFingerprint: plan.writer_fingerprint ?? undefined,
+        rendererFingerprint: plan.renderer_fingerprint ?? undefined,
+        sourceSha256: plan.base_sha256 ?? undefined,
+        proposedSha256: plan.proposed_sha256 ?? undefined,
+        targetRelativePath,
+        warnings: plan.warnings,
+        structuralDiff: plan.structural_diff.map((item) => ({
+          operationIndex: item.operation_index,
+          operationType: item.operation_type,
+          locator: item.locator,
+          before: item.before,
+          after: item.after,
+        })),
+        images,
+        truncatedCount: plan.preview_manifest?.truncated_count ?? 0,
+      },
+    });
+    if (!approved) {
+      await services.sidecar.rejectDocumentPlan(plan);
+      return null;
+    }
+    const execution = await services.sidecar.approveDocumentPlan(plan);
+    const completed = await services.sidecar.waitForDocumentExecution(execution);
+    if (completed.status === 'failed' || completed.status === 'conflict') {
+      throw new Error(completed.error?.message || '승인된 HWPX 문서를 적용하지 못했습니다.');
+    }
     return result.filePath;
   });
 
@@ -180,29 +254,32 @@ export function registerIpcHandlers(
    * 문서가 있어서, 원본을 고치면 다음에 쓸 양식이 사라진다. 저장 경로도 사용자가 고른다.
    */
   handle(IPC.documentFillTemplate, '양식을 채우지 못했습니다.', async (markdown: string) => {
-    const window = getWindow();
-    const picked = await dialog.showOpenDialog(window ?? undefined!, {
-      title: '채울 한글 양식 선택',
-      buttonLabel: '이 양식 사용',
-      defaultPath: services.primaryRootPath() ?? app.getPath('documents'),
-      filters: [{ name: '한글 양식', extensions: ['hwp', 'hwpx'] }],
-      properties: ['openFile'],
-    });
-    const templatePath = picked.canceled ? null : (picked.filePaths[0] ?? null);
-    if (!templatePath) return null;
-
-    const extension = path.extname(templatePath);
-    const suggested = `${path.basename(templatePath, extension)}_작성본${extension}`;
-    const target = await dialog.showSaveDialog(window ?? undefined!, {
-      title: '채운 사본 저장',
-      defaultPath: path.join(path.dirname(templatePath), suggested),
-      filters: [{ name: '한글 문서', extensions: [extension.replace('.', '')] }],
-    });
-    if (target.canceled || !target.filePath) return null;
-
-    await fillTemplate({ templatePath, filledMarkdown: markdown, targetPath: target.filePath });
-    return target.filePath;
+    void markdown;
+    throw new Error(
+      '직접 template writer는 비활성화되었습니다. 승인된 template_id registry를 통한 API v2 생성만 허용됩니다.',
+    );
   });
+}
+
+function confinedRelativePath(rootPath: string, targetPath: string, suffix: string): string {
+  const root = path.resolve(rootPath);
+  const target = path.resolve(targetPath);
+  const relative = path.relative(root, target);
+  if (
+    !relative ||
+    path.isAbsolute(relative) ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.extname(target).toLowerCase() !== suffix
+  ) {
+    throw new Error('생성 파일은 등록된 작업 폴더 내부의 올바른 확장자 경로여야 합니다.');
+  }
+  return relative.split(path.sep).join('/');
+}
+
+function requirePendingApproval(plan: DocumentPlanResponse): void {
+  if (plan.status === 'pending_approval' && plan.plan_hash) return;
+  throw new Error(plan.error?.message || `문서 계획을 승인할 수 없습니다 (${plan.status}).`);
 }
 
 /** 창이 닫힐 때 핸들러를 정리한다 (재기동 시 중복 등록 방지). */

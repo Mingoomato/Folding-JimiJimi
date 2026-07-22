@@ -5,6 +5,7 @@ import os
 import sqlite3
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -267,6 +268,37 @@ def test_backup_symlink_swap_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(SafeFileError):
         files.read_backup(str(backup))
+
+
+def test_retention_prunes_only_expired_app_managed_execution_directories(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "source"
+    backup_root = tmp_path / "backups"
+    recovery_root = tmp_path / "recovery"
+    source_root.mkdir()
+    files = SafeSourceFileStore(
+        SourceUriResolver(source_root),
+        backup_root=backup_root,
+        recovery_root=recovery_root,
+        max_bytes=1024,
+    )
+    expired = backup_root / f"exec_{'a' * 32}"
+    current = recovery_root / f"exec_{'b' * 32}"
+    unmanaged = backup_root / "do-not-delete"
+    for directory in (expired, current, unmanaged):
+        directory.mkdir(parents=True)
+        (directory / "artifact.bin").write_bytes(b"managed")
+    old_timestamp = (datetime.now(UTC) - timedelta(days=31)).timestamp()
+    os.utime(expired, (old_timestamp, old_timestamp))
+    os.utime(unmanaged, (old_timestamp, old_timestamp))
+
+    removed = files.prune_expired_managed_files(older_than=datetime.now(UTC) - timedelta(days=30))
+
+    assert removed == [expired]
+    assert not expired.exists()
+    assert current.is_dir()
+    assert unmanaged.is_dir()
 
 
 def test_atomic_replace_never_exposes_partial_content(tmp_path: Path) -> None:

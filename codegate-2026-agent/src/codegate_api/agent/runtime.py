@@ -11,7 +11,7 @@ from claude_agent_sdk import (
 )
 
 from codegate_api.agent.instructions import build_system_prompt
-from codegate_api.agent.tools import create_codegate_tool_server
+from codegate_api.agent.tools import DocumentReadToolService, create_codegate_tool_server
 from codegate_api.knowledge.access import AccessContext
 from codegate_api.knowledge.repository import KnowledgeRepository
 
@@ -21,6 +21,8 @@ SAFE_AGENT_TOOLS = frozenset(
         "mcp__codegate__document_get",
         "mcp__codegate__knowledge_document_read",
         "mcp__codegate__source_file_read",
+        "mcp__codegate__document_capabilities_get",
+        "mcp__codegate__source_structure_read",
     }
 )
 SDK_CONTROL_TOOLS = frozenset({"StructuredOutput"})
@@ -56,8 +58,9 @@ def build_claude_agent_options(
     session_id: str | None = None,
     resume: str | None = None,
     session_store: SessionStore | None = None,
+    document_reader: DocumentReadToolService | None = None,
 ) -> ClaudeAgentOptions:
-    tool_server = create_codegate_tool_server(repository, access_context)
+    tool_server = create_codegate_tool_server(repository, access_context, document_reader)
     return ClaudeAgentOptions(
         system_prompt=build_system_prompt(repository.agent_guide),
         tools=[],
@@ -104,6 +107,7 @@ def create_claude_agent_client(
     session_id: str | None = None,
     resume: str | None = None,
     session_store: SessionStore | None = None,
+    document_reader: DocumentReadToolService | None = None,
 ) -> ClaudeSDKClient:
     return ClaudeSDKClient(
         options=build_claude_agent_options(
@@ -116,5 +120,6 @@ def create_claude_agent_client(
             session_id=session_id,
             resume=resume,
             session_store=session_store,
+            document_reader=document_reader,
         )
     )

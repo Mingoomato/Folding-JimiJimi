@@ -78,6 +78,37 @@ export interface ApprovalRequest {
   /** Backend approval integrity fields. */
   changePlanId?: string;
   planHash?: string;
+  /** Native document v2 preview metadata. The renderer never receives local artifact paths. */
+  documentPreview?: DocumentApprovalPreview;
+}
+
+export interface DocumentApprovalDiff {
+  operationIndex: number;
+  operationType: string;
+  locator: Record<string, unknown> | null;
+  before: unknown;
+  after: unknown;
+}
+
+export interface DocumentApprovalImagePair {
+  label: string;
+  beforeDataUrl?: string;
+  afterDataUrl?: string;
+  summaryOnly: boolean;
+}
+
+export interface DocumentApprovalPreview {
+  format: 'hwp' | 'hwpx' | 'docx' | 'pptx' | 'xlsx' | 'pdf';
+  capabilityId: string;
+  writerFingerprint?: string;
+  rendererFingerprint?: string;
+  sourceSha256?: string;
+  proposedSha256?: string;
+  targetRelativePath: string;
+  warnings: string[];
+  structuralDiff: DocumentApprovalDiff[];
+  images: DocumentApprovalImagePair[];
+  truncatedCount: number;
 }
 
 /** local이 agent에 주입하는 의존성 묶음. */

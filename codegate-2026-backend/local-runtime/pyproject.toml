@@ -9,6 +9,7 @@ description = "Local source-event orchestrator for the LLM Wiki builder"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "codegate-filesystem",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<0.29",
   "llm-wiki-builder",
@@ -28,6 +29,7 @@ dev = [
 llm-wiki-local = "llm_wiki_local.api:main"
 
 [tool.uv.sources]
+codegate-filesystem = { path = "../../packages/codegate-filesystem", editable = true }
 llm-wiki-builder = { path = "../wiki-builder", editable = true }
 
 [tool.hatch.build.targets.wheel]

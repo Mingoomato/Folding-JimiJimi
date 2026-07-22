@@ -11,6 +11,7 @@ export const backendDir = path.join(rootDir, 'codegate-2026-backend');
 export const cloudApiDir = path.join(backendDir, 'cloud-api');
 export const wikiBuilderDir = path.join(backendDir, 'wiki-builder');
 export const localRuntimeDir = path.join(backendDir, 'local-runtime');
+export const filesystemDir = path.join(rootDir, 'packages', 'codegate-filesystem');
 export const isWindows = process.platform === 'win32';
 
 export function executable(name) {
@@ -28,8 +29,8 @@ export function nodeModulesExecutable(projectDir, name) {
 
 export function ensureNode22() {
   const major = Number(process.versions.node.split('.')[0]);
-  if (!Number.isInteger(major) || major < 22) {
-    throw new Error(`Node.js 22 이상이 필요합니다. 현재 버전: ${process.version}`);
+  if (!Number.isInteger(major) || major !== 22) {
+    throw new Error(`Node.js 22.x가 필요합니다. 현재 버전: ${process.version}`);
   }
 }
 

@@ -19,8 +19,10 @@ from typing import Any
 from uuid import uuid4
 
 import yaml
+from codegate_filesystem import fsync_directory, fsync_file
 from jsonschema import Draft202012Validator, FormatChecker
 
+from codegate_api.documents.models import DocumentContentChangedV2
 from codegate_api.files.atomic import DocumentLockManager, SafeFileError, SafeSourceFileStore
 from codegate_api.files.resolver import SourceUriResolver
 from codegate_api.integrations.doc2md import Doc2MdClient, Doc2MdError
@@ -332,6 +334,11 @@ class LLMWikiCompatibilityAdapter:
         relative = Path(ingest.fragments[0].relative_path.removeprefix("source-md/"))
         return _safe_child(self._input_root, relative.as_posix())
 
+    def new_input_path(self, document_id: str) -> Path:
+        """Return the only app-managed input location allowed for a created document."""
+
+        return _safe_output_child(self._input_root, f"general/{document_id}.md")
+
     def input_baseline(self, build: NativeBuild, document_id: str) -> NativeInputBaseline:
         manifest = build.manifest_by_id.get(document_id)
         if manifest is None:
@@ -573,6 +580,9 @@ class NativeLLMWikiCatalog:
                 raise LLMWikiCompatibilityError("LLMWIKI catalog is not bootstrapped")
             return self._adapter.input_baseline(self._native_build, document_id)
 
+    def new_input_path(self, document_id: str) -> Path:
+        return self._adapter.new_input_path(document_id)
+
     def stage(self) -> str:
         return self._runner.stage()
 
@@ -582,35 +592,63 @@ class NativeLLMWikiCatalog:
         *,
         expected_current_build_id: str,
         changed_document_ids: set[str],
+        change_kind: str = "update",
+        approved_document_id: str | None = None,
     ) -> PreparedNativeBuild:
         with self._lock:
             active = self.current_native_build()
             if active.build_id != expected_current_build_id:
                 raise LLMWikiCompatibilityError("active LLMWIKI build changed before validation")
         candidate = self._adapter.native_build(build_id)
-        if set(candidate.manifest_by_id) != set(active.manifest_by_id):
-            raise LLMWikiCompatibilityError("LLMWIKI candidate document set changed")
-        if not changed_document_ids <= set(candidate.manifest_by_id):
+        active_ids = set(active.manifest_by_id)
+        candidate_ids = set(candidate.manifest_by_id)
+        if change_kind == "update":
+            expected_ids = active_ids
+        elif change_kind in {"create", "derive"}:
+            if approved_document_id is None or approved_document_id in active_ids:
+                raise LLMWikiCompatibilityError("LLMWIKI creation event is not append-only")
+            expected_ids = active_ids | {approved_document_id}
+        elif change_kind == "recovery_remove":
+            if approved_document_id is None or approved_document_id not in active_ids:
+                raise LLMWikiCompatibilityError("LLMWIKI removal event has no active document")
+            expected_ids = active_ids - {approved_document_id}
+        else:
+            raise LLMWikiCompatibilityError("LLMWIKI change kind is unsupported")
+        if candidate_ids != expected_ids:
+            raise LLMWikiCompatibilityError("LLMWIKI candidate document set changed unexpectedly")
+        if change_kind != "recovery_remove" and not changed_document_ids <= candidate_ids:
             raise LLMWikiCompatibilityError("LLMWIKI candidate lacks a changed document")
         for document_id, candidate_manifest in candidate.manifest_by_id.items():
             candidate_ingest = _native_ingest(candidate_manifest, document_id)
-            active_ingest = _native_ingest(active.manifest_by_id[document_id], document_id)
             if document_id in changed_document_ids:
+                active_manifest = active.manifest_by_id.get(document_id)
+                active_ingest = (
+                    _native_ingest(active_manifest, document_id)
+                    if active_manifest is not None
+                    else None
+                )
+                same_existing_path = active_ingest is None or (
+                    active_ingest.supports_atomic_edit
+                    and candidate_ingest.fragments[0].relative_path
+                    == active_ingest.fragments[0].relative_path
+                )
+                known_input = self._state.is_known_llmwiki_input_state(
+                    document_id=document_id,
+                    active_build_id=expected_current_build_id,
+                    content_sha256=candidate_ingest.fragments[0].sha256,
+                )
                 if (
-                    not active_ingest.supports_atomic_edit
-                    or not candidate_ingest.supports_atomic_edit
-                    or candidate_ingest.fragments[0].relative_path
-                    != active_ingest.fragments[0].relative_path
-                    or not self._state.is_known_llmwiki_input_state(
-                        document_id=document_id,
-                        active_build_id=expected_current_build_id,
-                        content_sha256=candidate_ingest.fragments[0].sha256,
-                    )
+                    not candidate_ingest.supports_atomic_edit
+                    or not same_existing_path
+                    or not known_input
                 ):
                     raise LLMWikiCompatibilityError(
                         f"LLMWIKI candidate contains an unapproved input: {document_id}"
                     )
-            elif candidate_ingest.descriptor_sha256 != active_ingest.descriptor_sha256:
+            elif (
+                candidate_ingest.descriptor_sha256
+                != _native_ingest(active.manifest_by_id[document_id], document_id).descriptor_sha256
+            ):
                 raise LLMWikiCompatibilityError(
                     f"LLMWIKI candidate changed an unrelated input: {document_id}"
                 )
@@ -766,6 +804,197 @@ class NativeLLMWikiPipeline:
         self._locks = lock_manager
         self._doc2md = doc2md
         self._lock = asyncio.Lock()
+
+    async def process_document_event(self, payload_data: dict[str, Any]) -> str:
+        """Apply one v2 outbox event through native LLMWIKI staging and CAS."""
+
+        payload = DocumentContentChangedV2.model_validate(payload_data)
+        async with self._lock:
+            parent_version = self._catalog.snapshot().version
+            input_path: Path | None = None
+            original_input: bytes | None = None
+            input_created = False
+            prepared: PreparedNativeBuild | None = None
+            try:
+                changed, input_path, original_input, input_created = await asyncio.to_thread(
+                    self._apply_document_event_v2,
+                    payload,
+                    parent_version,
+                )
+                if not changed:
+                    return parent_version
+                await asyncio.to_thread(self._verify_document_event_v2, payload)
+                build_id = await asyncio.to_thread(self._catalog.stage)
+                async with self._locks.acquire_publish():
+                    prepared = await asyncio.to_thread(
+                        self._catalog.prepare_candidate,
+                        build_id,
+                        expected_current_build_id=parent_version,
+                        changed_document_ids={payload.document_id},
+                        change_kind=payload.change_kind,
+                        approved_document_id=payload.document_id,
+                    )
+                    await asyncio.to_thread(self._verify_document_event_v2, payload)
+                    repository = await asyncio.to_thread(
+                        self._catalog.activate_candidate,
+                        prepared,
+                        expected_current_build_id=parent_version,
+                    )
+                if repository.version != build_id:
+                    raise LLMWikiCompatibilityError("published LLMWIKI version was not loaded")
+                self._state.record_knowledge_version(
+                    version=build_id,
+                    parent_version=parent_version,
+                    event_ids=[payload.event_id],
+                    status="active",
+                )
+                return build_id
+            except BaseException:
+                committed = False
+                if prepared is not None:
+                    with suppress(Exception):
+                        committed = await asyncio.to_thread(
+                            self._catalog.recover_committed_candidate,
+                            prepared,
+                        )
+                if input_path is not None and not committed:
+                    await asyncio.to_thread(
+                        self._restore_document_input_v2,
+                        input_path,
+                        original_input,
+                        input_created,
+                    )
+                with suppress(Exception):
+                    await asyncio.to_thread(self._catalog.refresh, allow_stale_sources=True)
+                raise
+
+    def _apply_document_event_v2(
+        self,
+        payload: DocumentContentChangedV2,
+        parent_version: str,
+    ) -> tuple[bool, Path | None, bytes | None, bool]:
+        repository = self._catalog.snapshot()
+        manifest = repository.get_manifest(
+            payload.document_id,
+            access_context=_internal_access_context(),
+        )
+        original: bytes | None
+        if payload.change_kind == "recovery_remove":
+            if manifest is None:
+                return False, None, None, False
+            if payload.before_sha256 != manifest.source.sha256:
+                raise LLMWikiCompatibilityError("creation Undo base hash mismatch")
+            baseline = self._catalog.input_baseline(payload.document_id)
+            original = baseline.path.read_bytes()
+            baseline.path.unlink()
+            _fsync_directory(baseline.path.parent)
+            return True, baseline.path, original, False
+
+        if payload.after_sha256 is None:
+            raise LLMWikiCompatibilityError("changed document event has no after hash")
+        snapshot = self._files.snapshot(payload.source_uri)
+        if snapshot.sha256 != payload.after_sha256:
+            raise LLMWikiCompatibilityError("live source does not match document event")
+        if payload.change_kind == "update":
+            if manifest is None:
+                raise LLMWikiCompatibilityError("update references an unknown document")
+            if manifest.source.uri != payload.source_uri:
+                raise LLMWikiCompatibilityError("update source URI differs from catalog")
+            if manifest.source.sha256 == payload.after_sha256:
+                return False, None, None, False
+            if manifest.source.sha256 != payload.before_sha256:
+                raise LLMWikiCompatibilityError("update event base hash mismatch")
+            baseline = self._catalog.input_baseline(payload.document_id)
+            input_path = baseline.path
+            original = input_path.read_bytes()
+            metadata, _body = _parse_normalized_markdown(baseline.text, input_path)
+            title = manifest.title
+            revision = _next_revision(manifest.revision)
+            conversion_manifest = manifest.model_copy(
+                update={
+                    "revision": revision,
+                    "source": manifest.source.model_copy(update={"sha256": payload.after_sha256}),
+                }
+            )
+            input_created = False
+        else:
+            if manifest is not None:
+                if manifest.source.sha256 == payload.after_sha256:
+                    return False, None, None, False
+                raise LLMWikiCompatibilityError("creation may add only one new document")
+            input_path = self._catalog.new_input_path(payload.document_id)
+            if input_path.exists():
+                raise LLMWikiCompatibilityError("creation input target already exists")
+            original = None
+            title = _title_from_source_uri(payload.source_uri, payload.document_id)
+            revision = "1"
+            metadata = _new_native_input_metadata(payload, title=title, revision=revision)
+            conversion_manifest = _new_native_conversion_manifest(
+                payload,
+                title=title,
+                revision=revision,
+            )
+            input_created = True
+
+        if self._doc2md is None:
+            raise LLMWikiCompatibilityError("doc2md is required for native document sync")
+        converted = self._doc2md.convert(
+            conversion_manifest,
+            expected_source_sha256=payload.after_sha256,
+        )
+        converted_body = _normalize_converted_h1(converted.body, expected_title=title)
+        updated = _render_normalized_markdown(
+            metadata,
+            converted_body,
+            source_sha256=payload.after_sha256,
+            revision=revision,
+        )
+        parsed_metadata, parsed_body = _parse_normalized_markdown(updated, input_path)
+        _validate_input_identity(
+            parsed_metadata,
+            document_id=payload.document_id,
+            source_uri=payload.source_uri,
+            allowed_source_hashes={payload.after_sha256},
+            revision=revision,
+        )
+        if not parsed_body.strip():
+            raise LLMWikiCompatibilityError("converted document body is empty")
+        self._record_and_write_input(
+            path=input_path,
+            text=updated,
+            document_id=payload.document_id,
+            active_build_id=parent_version,
+            source_sha256=payload.after_sha256,
+            revision=revision,
+            event_ids=[payload.event_id],
+        )
+        return True, input_path, original, input_created
+
+    def _verify_document_event_v2(self, payload: DocumentContentChangedV2) -> None:
+        if payload.change_kind == "recovery_remove":
+            if not self._files.is_absent(payload.source_uri):
+                raise LLMWikiCompatibilityError("creation Undo source still exists")
+            return
+        assert payload.after_sha256 is not None
+        self._verify_live_source(
+            document_id=payload.document_id,
+            source_uri=payload.source_uri,
+            expected_sha256=payload.after_sha256,
+        )
+
+    @staticmethod
+    def _restore_document_input_v2(
+        input_path: Path,
+        original_input: bytes | None,
+        input_created: bool,
+    ) -> None:
+        if input_created:
+            input_path.unlink(missing_ok=True)
+            if input_path.parent.exists():
+                _fsync_directory(input_path.parent)
+            return
+        if original_input is not None:
+            _atomic_write_text(input_path, original_input.decode("utf-8"))
 
     async def process_pending(self) -> str:
         async with self._lock:
@@ -1462,6 +1691,91 @@ def _render_normalized_markdown(
     return f"---\n{frontmatter}---\n{body}"
 
 
+def _title_from_source_uri(source_uri: str, document_id: str) -> str:
+    filename = Path(source_uri.removeprefix("source://")).name
+    title = Path(filename).stem.strip().replace("_", " ")
+    return title or document_id
+
+
+def _new_native_input_metadata(
+    payload: DocumentContentChangedV2,
+    *,
+    title: str,
+    revision: str,
+) -> dict[str, Any]:
+    assert payload.after_sha256 is not None
+    filename = Path(payload.source_uri.removeprefix("source://")).name
+    return {
+        "schema_version": "1.0.0",
+        "id": payload.document_id,
+        "title": title,
+        "doc_type": "general",
+        "language": "ko",
+        "revision": revision,
+        "status": "active",
+        "official_number": None,
+        "authority_level": "reference",
+        "issuing_org": None,
+        "issued_on": None,
+        "effective_from": None,
+        "effective_to": None,
+        "source": {
+            "filename": filename,
+            "uri": payload.source_uri,
+            "sha256": payload.after_sha256,
+        },
+        "access": "internal",
+        "tags": [],
+        "aliases": [],
+    }
+
+
+def _new_native_conversion_manifest(
+    payload: DocumentContentChangedV2,
+    *,
+    title: str,
+    revision: str,
+) -> ManifestEntry:
+    assert payload.after_sha256 is not None
+    filename = Path(payload.source_uri.removeprefix("source://")).name
+    return ManifestEntry.model_validate(
+        {
+            "schema_version": "1.0.0",
+            "id": payload.document_id,
+            "file_version_id": f"dfv_{payload.after_sha256[:24]}",
+            "title": title,
+            "doc_type": "general",
+            "language": "ko",
+            "revision": revision,
+            "status": "active",
+            "official_number": None,
+            "authority_level": "reference",
+            "issuing_org": None,
+            "issued_on": None,
+            "effective_from": None,
+            "effective_to": None,
+            "source": {
+                "filename": filename,
+                "uri": payload.source_uri,
+                "media_type": _media_type(filename),
+                "sha256": payload.after_sha256,
+            },
+            "canonical_path": f"docs/general/{payload.document_id}.md",
+            "access": "internal",
+            "write_access": "none",
+            "editability": "read_only",
+            "tags": [],
+            "aliases": [],
+            "conversion": {
+                "converter": "doc2md",
+                "conversion_version": "pending",
+                "converted_at": None,
+                "status": "pending",
+            },
+        }
+    )
+
+
 def _normalize_converted_h1(body: str, *, expected_title: str) -> str:
     if (
         not expected_title
@@ -1739,8 +2053,13 @@ def _media_type(filename: str) -> str:
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = path.parent / f".{path.name}.{uuid4().hex}.tmp"
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    descriptor = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
+        0o600,
+    )
     try:
         payload = content.encode("utf-8")
         view = memoryview(payload)
@@ -1763,11 +2082,7 @@ def _discard_tree(root: Path) -> None:
 
 
 def _fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+    fsync_directory(path)
 
 
 def _fsync_tree(root: Path) -> None:
@@ -1780,10 +2095,6 @@ def _fsync_tree(root: Path) -> None:
             continue
         if not path.is_file():
             raise LLMWikiCompatibilityError("compatibility cache contains a non-regular file")
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
+        fsync_file(path)
     for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
         _fsync_directory(directory)

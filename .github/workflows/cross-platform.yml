@@ -1,0 +1,69 @@
+name: cross-platform
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+          enable-cache: true
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@11.9.0 --activate
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run root checks
+        run: pnpm check
+
+  real-renderers:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+          enable-cache: true
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@11.9.0 --activate
+      - name: Install LibreOffice (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libreoffice
+      - name: Install LibreOffice (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask libreoffice
+      - name: Install LibreOffice (Windows)
+        if: runner.os == 'Windows'
+        run: choco install libreoffice-fresh --no-progress -y
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Agent dependencies
+        run: uv sync --project codegate-2026-agent --locked
+      - name: Verify real document capabilities and fixtures
+        run: uv run --project codegate-2026-agent pytest -q tests/test_document_formats_v2.py

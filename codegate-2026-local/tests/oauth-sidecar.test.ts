@@ -117,7 +117,7 @@ describe('Python sidecar agent bridge', () => {
         body,
       });
       response.setHeader('content-type', 'application/json');
-      if (request.url === '/api/v1/chat/messages') {
+      if (request.url === '/api/v2/chat/messages') {
         response.end(
           JSON.stringify({
             conversation_id: 'conversation-1',
@@ -150,6 +150,7 @@ describe('Python sidecar agent bridge', () => {
               unified_diff: '-5년\n+3년',
               plan_hash: 'a'.repeat(64),
             },
+            document_plan: null,
             error: null,
           }),
         );
@@ -220,6 +221,138 @@ describe('Python sidecar agent bridge', () => {
           sectionId: 'sec-004',
         },
       ],
+    });
+  });
+
+  it('routes native document proposals through v2 typed approval', async () => {
+    const paths: string[] = [];
+    const server = createServer(async (request, response) => {
+      await readJson(request);
+      paths.push(request.url ?? '');
+      response.setHeader('content-type', 'application/json');
+      if (request.url === '/api/v2/chat/messages') {
+        response.end(
+          JSON.stringify({
+            conversation_id: 'native-conversation',
+            message_id: 'native-message',
+            response_type: 'change_preview',
+            assistant_text: 'Native document preview is ready.',
+            documents: [],
+            change_plan: null,
+            document_plan: {
+              change_plan_id: 'dplan-1',
+              kind: 'mutation',
+              document_id: 'DOC-000001',
+              format: 'docx',
+              capability_id: 'docx.writer.python-docx/v1',
+              source_uri: 'source://reports/report.docx',
+              target_relative_path: null,
+              status: 'pending_approval',
+              base_sha256: 'a'.repeat(64),
+              proposed_sha256: 'b'.repeat(64),
+              plan_hash: 'c'.repeat(64),
+              graph_version: 'graph-1',
+              capability_snapshot_id: 'd'.repeat(64),
+              writer_fingerprint: 'python-docx/1.2.0',
+              renderer_fingerprint: 'LibreOffice/test',
+              operations: [],
+              structural_diff: [
+                {
+                  operation_index: 0,
+                  operation_type: 'text.replace/v1',
+                  locator: { kind: 'paragraph', block_index: 1 },
+                  before: 'old',
+                  after: 'new',
+                },
+              ],
+              preview_manifest: {
+                manifest_sha256: 'e'.repeat(64),
+                pairs: [
+                  {
+                    locator_label: 'page-1',
+                    before_artifact_id: null,
+                    after_artifact_id: null,
+                    summary_only: true,
+                  },
+                ],
+                truncated_count: 0,
+              },
+              warnings: [],
+              error: null,
+            },
+            error: null,
+          }),
+        );
+        return;
+      }
+      if (request.url === '/api/v2/change-plans/dplan-1/approve') {
+        response.statusCode = 202;
+        response.end(
+          JSON.stringify({
+            execution_id: 'exec-1',
+            change_plan_id: 'dplan-1',
+            undo_of_execution_id: null,
+            document_id: 'DOC-000001',
+            change_kind: 'update',
+            format: 'docx',
+            capability_id: 'docx.writer.python-docx/v1',
+            source_uri: 'source://reports/report.docx',
+            status: 'completed',
+            before_sha256: 'a'.repeat(64),
+            after_sha256: 'b'.repeat(64),
+            artifact_sha256: 'b'.repeat(64),
+            graph_version_before: 'graph-1',
+            graph_version_after: 'graph-2',
+            error: null,
+          }),
+        );
+        return;
+      }
+      response.statusCode = 404;
+      response.end('{}');
+    });
+    const baseUrl = await listen(server);
+    servers.push(server);
+    let approvalPreview: unknown;
+    const deps: AgentDeps = {
+      config: { roots: [], backendUrl: `${baseUrl}/api/v1`, wikiDir: '/tmp/wiki' },
+      auth: { getToken: async () => '', canWrite: () => true },
+      approvalHandler: async (request) => {
+        approvalPreview = request.documentPreview;
+        return true;
+      },
+      kordoc: {
+        parse: async () => '',
+        patch: async () => ({
+          ok: true,
+          exitCode: 0,
+          applied: 0,
+          unapplied: [],
+          backupPath: '',
+        }),
+        generate: async () => undefined,
+        render: async () => [],
+      },
+    };
+    const events = [];
+    for await (const event of createSidecarAgent(deps).send('replace old with new', {
+      conversationId: 'native-conversation',
+    })) {
+      events.push(event);
+    }
+
+    expect(paths).toEqual([
+      '/api/v2/chat/messages',
+      '/api/v2/change-plans/dplan-1/approve',
+    ]);
+    expect(approvalPreview).toMatchObject({
+      format: 'docx',
+      capabilityId: 'docx.writer.python-docx/v1',
+      targetRelativePath: 'reports/report.docx',
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: 'done',
+      execution: { executionId: 'exec-1', status: 'completed', stage: 'published' },
     });
   });
 });

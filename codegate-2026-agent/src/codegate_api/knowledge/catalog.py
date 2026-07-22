@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fcntl
 import os
 import re
 import shutil
@@ -8,6 +7,8 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
+
+from codegate_filesystem import file_lock, fsync_directory, fsync_file
 
 from codegate_api.files.resolver import SourceUriResolver
 from codegate_api.knowledge.repository import KnowledgeRepository
@@ -192,7 +193,11 @@ class KnowledgeCatalog:
     def _write_pointer(self, release_name: str) -> None:
         self._pointer_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self._pointer_path.parent / f".CURRENT-{uuid4().hex}.tmp"
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
+            0o600,
+        )
         try:
             payload = f"{release_name}\n".encode()
             view = memoryview(payload)
@@ -208,14 +213,8 @@ class KnowledgeCatalog:
     @contextmanager
     def _exclusive_catalog_lock(self):  # type: ignore[no-untyped-def]
         lock_path = self._pointer_path.parent / "catalog.lock"
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
-        try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        with file_lock(lock_path):
             yield
-        finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
-            os.close(descriptor)
 
 
 def _release_name(version: str) -> str:
@@ -226,11 +225,7 @@ def _release_name(version: str) -> str:
 
 
 def _fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+    fsync_directory(path)
 
 
 def _fsync_tree(root: Path) -> None:
@@ -243,10 +238,6 @@ def _fsync_tree(root: Path) -> None:
             continue
         if not path.is_file():
             raise KnowledgeCatalogError("knowledge candidate contains a non-regular file")
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
+        fsync_file(path)
     for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
         _fsync_directory(directory)

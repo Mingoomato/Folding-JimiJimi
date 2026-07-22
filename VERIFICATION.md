@@ -6,12 +6,17 @@
 
 `pnpm check` 전체 통과:
 
-- Electron: TypeScript typecheck 통과, 132개 테스트 통과·1개 opt-in 테스트 건너뜀, production build 통과
-- Agent: Ruff·mypy 통과, 231개 테스트 통과
+- Electron: TypeScript typecheck 통과, 126개 테스트 통과·2개 opt-in 테스트 건너뜀, production build 통과
+- Agent: Ruff·mypy 통과, 248개 테스트 통과
 - Google OAuth cloud-api: Ruff 통과, 22개 테스트 통과
 - LLMWIKI builder: Ruff 통과, 52개 테스트 통과
 - 구형 local-runtime 계약: Ruff 통과, 14개 테스트 통과
 - doc2md: 106개 테스트 통과
+
+문서 API v2 검증에는 HWPX/DOCX/PPTX/XLSX/PDF writer round-trip, typed operation,
+승인된 template SHA 고정, Windows filesystem adapter, create/update/derive/Undo LLMWIKI 이벤트,
+승인 응답 전 `CREATE_NEW` 크래시 후 재시작·idempotency replay가 포함된다. 상세 계약은
+[`DOCUMENT_EDITING_V2.md`](DOCUMENT_EDITING_V2.md)에 기록했다.
 
 `pnpm smoke` 전체 통과:
 

@@ -23,6 +23,8 @@ def app_settings(tmp_path: Path) -> Settings:
         knowledge_pointer_path=tmp_path / "knowledge/CURRENT",
         database_path=tmp_path / "state.sqlite3",
         backup_root=tmp_path / "backups",
+        document_artifact_root=tmp_path / "document-artifacts",
+        document_recovery_root=tmp_path / "recovery",
         agent_state_root=tmp_path / "claude",
         auth_mode="demo",
         demo_auth_token=DEMO_TOKEN,
