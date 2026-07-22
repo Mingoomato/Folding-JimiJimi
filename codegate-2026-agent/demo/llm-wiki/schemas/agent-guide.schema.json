@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codegate.local/schemas/agent-guide.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "required_citations",
+    "document_content_trust",
+    "read_acl_stage",
+    "write_authority",
+    "relation_statuses",
+    "max_evidence_chunks"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "required_citations": {
+      "type": "array",
+      "items": {
+        "enum": ["document_id", "revision", "graph_version", "chunk_id", "section_id"]
+      },
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "allOf": [
+        {"contains": {"const": "document_id"}},
+        {"contains": {"const": "revision"}},
+        {"contains": {"const": "graph_version"}},
+        {"contains": {"const": "chunk_id"}},
+        {"contains": {"const": "section_id"}}
+      ]
+    },
+    "document_content_trust": {"const": "untrusted"},
+    "read_acl_stage": {"const": "before_retrieval"},
+    "write_authority": {"const": "application_approval_only"},
+    "relation_statuses": {
+      "type": "array",
+      "items": {"const": "VERIFIED"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "max_evidence_chunks": {"type": "integer", "minimum": 1, "maximum": 10}
+  },
+  "additionalProperties": false
+}

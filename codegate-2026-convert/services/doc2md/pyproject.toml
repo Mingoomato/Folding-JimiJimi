@@ -1,0 +1,73 @@
+[project]
+name = "doc2md"
+version = "0.2.0"
+description = "Native-Python document-to-markdown conversion API (markitdown + pyhwp2md)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "markitdown[pdf,pptx,docx,xlsx]>=0.1.6",
+    "python-pptx>=1.0",
+    "pyhwp2md>=0.1.3",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    # OCR + document-structure parsing: PaddleOCR PP-StructureV3. Needs the
+    # paddlex[ocr] extras (layout/table models) — without them the pipeline
+    # raises DependencyError at construction.
+    # Pillow/numpy decode image bytes in memory so no image is written to disk.
+    "paddleocr>=3.3",
+    "paddlex[ocr]>=3.3",
+    "paddlepaddle>=3.2",  # CPU build; install the `gpu` extra to override
+    "pillow>=10.0",
+    "numpy>=1.26",
+    # Scanned PDF page rendering
+    "pymupdf>=1.24",
+]
+
+[project.optional-dependencies]
+agent = [
+    "claude-agent-sdk>=0.2.124",
+    "httpx>=0.27",
+]
+# Object-storage sources (`{"kind": "uri", "uri": "s3://..."}`) for a deployment
+# where doc2md does not share a filesystem with its caller. Not needed for the
+# co-located default, which only ever sees local paths.
+uri = [
+    "fsspec>=2024.6",
+    "s3fs>=2024.6",
+]
+test = [
+    "pytest>=8.0",
+]
+# OCR runs ~10x faster on a GPU. Paddle reaches NVIDIA GPUs through CUDA only,
+# and the CUDA-enabled wheel lives on PaddlePaddle's own index rather than PyPI
+# — the PyPI `paddlepaddle-gpu` expects a separately installed CUDA Toolkit and
+# fails with a missing cublas64_12.dll without one.
+#
+#   uv sync --extra gpu
+#   # or with pip:
+#   pip install -e ".[gpu]" --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+#
+# Installing it is all that is required: the service probes CUDA at startup and
+# uses the GPU automatically, falling back to CPU if anything is missing.
+gpu = [
+    "paddlepaddle-gpu>=3.2",
+]
+
+# uv resolves paddlepaddle-gpu from PaddlePaddle's index automatically; the
+# index is `explicit` so nothing else is pulled from it.
+[[tool.uv.index]]
+name = "paddle-cu126"
+url = "https://www.paddlepaddle.org.cn/packages/stable/cu126/"
+explicit = true
+
+[tool.uv.sources]
+paddlepaddle-gpu = { index = "paddle-cu126" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

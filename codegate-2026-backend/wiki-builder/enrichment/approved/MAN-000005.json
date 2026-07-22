@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "MAN-000005",
+  "source_sha256": "2a7a7e8a3aac5cac4f50a4f9bd658159fbc380569dc35c3183ad6e6fd623a918",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 문서는 보안 로그 분석을 위한 준비 사항과 기본 질의 예시, 이상 징후 탐지 기준을 다룬다. 로그 분석 시 시간대 통일과 데이터베이스 부하 고려 사항을 명시하며, 사고 발생 시 대응 규정을 안내한다.",
+    "evidence": [
+      {
+        "section_id": "sec-edc68673fe",
+        "quote": "분석 시각 범위와 시스템 시간대를 확인한다."
+      },
+      {
+        "section_id": "sec-ba2e2624ae",
+        "quote": "사고가 의심되면 [정보보호 사고 대응 규정](REG-000009.md)을 적용한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "로그 분석 시 시스템 간 기준 시간을 통일해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-edc68673fe",
+          "quote": "서로 다른 시스템의 로그를 결합할 때는 기준 시간을 통일한다."
+        }
+      ]
+    },
+    {
+      "text": "운영 데이터베이스에서 질의 실행 시 권한과 부하를 사전에 확인해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-c82f4dbaa1",
+          "quote": "실제 운영 데이터베이스에서 직접 실행하기 전에 권한과 부하를 확인한다."
+        }
+      ]
+    },
+    {
+      "text": "반복 실패, 비정상 지역 접속, 업무 외 시간 특권 변경을 이상 징후로 간주한다.",
+      "evidence": [
+        {
+          "section_id": "sec-ba2e2624ae",
+          "quote": "짧은 시간의 반복 실패, 사용하지 않던 지역의 접속, 업무시간 외 특권 변경을 우선 확인한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "로그분석",
+    "보안관제",
+    "시스템 시간대",
+    "audit_log",
+    "이상 징후",
+    "정보보호 사고 대응 규정"
+  ],
+  "entities": [
+    {
+      "name": "audit_log",
+      "type": "system",
+      "evidence": [
+        {
+          "section_id": "sec-c82f4dbaa1",
+          "quote": "FROM audit_log"
+        }
+      ]
+    },
+    {
+      "name": "정보보호 사고 대응 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-ba2e2624ae",
+          "quote": "정보보호 사고 대응 규정"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "로그 분석 시 시간대와 관련하여 주의할 점은 무엇인가?",
+      "answer": "분석 시각 범위와 시스템 시간대를 확인하고, 서로 다른 시스템의 로그를 결합할 때는 기준 시간을 통일해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-edc68673fe",
+          "quote": "분석 시각 범위와 시스템 시간대를 확인한다. 서로 다른 시스템의 로그를 결합할 때는 기준 시간을 통일한다."
+        }
+      ]
+    },
+    {
+      "question": "이상 징후가 발견되어 사고가 의심될 경우 어떻게 해야 하는가?",
+      "answer": "정보보호 사고 대응 규정을 적용해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-ba2e2624ae",
+          "quote": "사고가 의심되면 [정보보호 사고 대응 규정](REG-000009.md)을 적용한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000009",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-ba2e2624ae",
+          "quote": "짧은 시간의 반복 실패, 사용하지 않던 지역의 접속, 업무시간 외 특권 변경을 우선 확인한다. 사고가 의심되면 [정보보호 사고 대응 규정](REG-000009.md)을 적용한다."
+        }
+      ]
+    }
+  ]
+}

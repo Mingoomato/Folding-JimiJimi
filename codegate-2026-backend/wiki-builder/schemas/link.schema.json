@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/schemas/link.schema.json",
+  "title": "LLM Wiki Link Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "wiki_version", "from_doc_id", "from_section_id", "to_doc_id",
+    "relation_type", "origin", "evidence_quote"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "wiki_version": {"type": "string"},
+    "from_doc_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$", "maxLength": 96},
+    "from_section_id": {"type": "string", "pattern": "^sec-[0-9a-f]{10}$"},
+    "to_doc_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$", "maxLength": 96},
+    "relation_type": {"enum": ["references", "implements", "implemented_by", "based_on", "supersedes", "superseded_by"]},
+    "origin": {"enum": ["explicit", "llm-classified"]},
+    "evidence_quote": {"type": "string", "minLength": 1}
+  }
+}

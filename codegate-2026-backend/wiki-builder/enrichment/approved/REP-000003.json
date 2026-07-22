@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REP-000003",
+  "source_sha256": "4ca705fc95ca1d5593281d2bf78faabac6a229b58eade4985adba7cc3744773b",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 보고서는 고객정보 및 운영시스템에 접근하는 주요 협력사 8곳에 대한 보안평가 결과를 담고 있다. 평가 결과에 따라 적합 및 조건부 적합 판정을 내렸으며, 협력사 보안점검 매뉴얼에 따라 절차를 수행하였다.",
+    "evidence": [
+      {
+        "section_id": "sec-49749b3c64",
+        "quote": "고객정보 또는 운영시스템에 접근하는 주요 협력사 8곳을 평가했다."
+      },
+      {
+        "section_id": "sec-cbdf83a06c",
+        "quote": "조건부 적합 3곳에는 개선 완료일을 부여했고 나머지 5곳은 적합으로 판정했다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "주요 협력사 8곳을 대상으로 설문, 증빙 검토, 인터뷰를 수행함",
+      "evidence": [
+        {
+          "section_id": "sec-49749b3c64",
+          "quote": "설문, 증빙 검토 및 담당자 인터뷰를 함께 수행했다."
+        }
+      ]
+    },
+    {
+      "text": "퇴직자 계정 회수 증빙 부족 및 사고 통지 연락망 미비 등의 보안 취약점 발견",
+      "evidence": [
+        {
+          "section_id": "sec-e0aef8712f",
+          "quote": "협력사 2곳에서 퇴직자 계정 회수 증빙이 부족했다."
+        }
+      ]
+    },
+    {
+      "text": "모든 협력사가 저장자료 암호화 기준을 충족함",
+      "evidence": [
+        {
+          "section_id": "sec-e0aef8712f",
+          "quote": "모든 협력사가 저장자료 암호화 기준을 충족했다."
+        }
+      ]
+    },
+    {
+      "text": "조건부 적합 3곳에 개선 완료일을 부여하고 나머지 5곳은 적합 판정",
+      "evidence": [
+        {
+          "section_id": "sec-cbdf83a06c",
+          "quote": "조건부 적합 3곳에는 개선 완료일을 부여했고 나머지 5곳은 적합으로 판정했다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "협력사",
+    "보안평가",
+    "퇴직자 계정",
+    "사고 통지 연락망",
+    "저장자료 암호화",
+    "조건부 적합",
+    "공급망 점검결과"
+  ],
+  "entities": [
+    {
+      "name": "협력사 보안점검 매뉴얼",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-cbdf83a06c",
+          "quote": "평가 절차는 [협력사 보안점검 매뉴얼](MAN-000004.md)을 사용했다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "이번 보안평가는 몇 곳의 협력사를 대상으로 진행되었나요?",
+      "answer": "고객정보 또는 운영시스템에 접근하는 주요 협력사 8곳을 대상으로 진행되었습니다.",
+      "evidence": [
+        {
+          "section_id": "sec-49749b3c64",
+          "quote": "고객정보 또는 운영시스템에 접근하는 주요 협력사 8곳을 평가했다."
+        }
+      ]
+    },
+    {
+      "question": "보안평가 시 어떤 절차를 따랐나요?",
+      "answer": "협력사 보안점검 매뉴얼을 사용하여 평가 절차를 수행했습니다.",
+      "evidence": [
+        {
+          "section_id": "sec-cbdf83a06c",
+          "quote": "평가 절차는 [협력사 보안점검 매뉴얼](MAN-000004.md)을 사용했다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "MAN-000004",
+      "relation_type": "based_on",
+      "evidence": [
+        {
+          "section_id": "sec-cbdf83a06c",
+          "quote": "평가 절차는 [협력사 보안점검 매뉴얼](MAN-000004.md)을 사용했다."
+        }
+      ]
+    }
+  ]
+}

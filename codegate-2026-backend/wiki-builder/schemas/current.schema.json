@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/schemas/current.schema.json",
+  "title": "Current Immutable Wiki Build Pointer",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tenant_id", "wiki_id", "build_id", "relative_path", "complete"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "tenant_id": {"type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$"},
+    "wiki_id": {"type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$"},
+    "build_id": {"type": "string", "pattern": "^build-[0-9a-f]{20}$"},
+    "relative_path": {"type": "string", "pattern": "^builds/build-[0-9a-f]{20}$"},
+    "complete": {"type": "boolean"}
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REG-000015",
+  "source_sha256": "ed09637978fc4fbc314b67114eb913852e553322cd8a87daf4f9095649b9aa7a",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 규정은 시설 내 물리적 보안구역을 일반구역, 통제구역, 제한구역으로 구분하여 관리하는 기준을 제시한다. 또한 방문자 관리 절차와 출입기록 보호 및 이상 발생 시 대응 체계를 규정한다.",
+    "evidence": [
+      {
+        "section_id": "sec-863724360e",
+        "quote": "시설은 일반구역, 통제구역 및 제한구역으로 구분한다."
+      },
+      {
+        "section_id": "sec-dde6d0d5c6",
+        "quote": "출입기록은 위·변조 및 무단 열람으로부터 보호한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "시설 내 보안구역을 일반구역, 통제구역, 제한구역으로 분류하여 관리한다.",
+      "evidence": [
+        {
+          "section_id": "sec-863724360e",
+          "quote": "시설은 일반구역, 통제구역 및 제한구역으로 구분한다."
+        }
+      ]
+    },
+    {
+      "text": "방문자 출입 시 신원 확인 및 방문 목적, 피방문자, 출입시간을 기록해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-180f8deb60",
+          "quote": "방문자는 신원을 확인하고 방문 목적, 피방문자, 출입시간을 기록한다."
+        }
+      ]
+    },
+    {
+      "text": "통제구역 출입 시 승인된 임직원의 동행이 필수적이다.",
+      "evidence": [
+        {
+          "section_id": "sec-180f8deb60",
+          "quote": "통제구역에서는 승인된 임직원이 동행한다."
+        }
+      ]
+    },
+    {
+      "text": "출입기록은 위·변조 및 무단 열람으로부터 보호되어야 하며, 이상 발생 시 규정에 따라 보고한다.",
+      "evidence": [
+        {
+          "section_id": "sec-dde6d0d5c6",
+          "quote": "출입기록은 위·변조 및 무단 열람으로부터 보호한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "물리적 보안구역",
+    "일반구역",
+    "통제구역",
+    "제한구역",
+    "방문자 관리",
+    "출입기록",
+    "물리보안",
+    "출입통제"
+  ],
+  "entities": [
+    {
+      "name": "일반구역",
+      "type": "other",
+      "evidence": [
+        {
+          "section_id": "sec-863724360e",
+          "quote": "일반구역"
+        }
+      ]
+    },
+    {
+      "name": "통제구역",
+      "type": "other",
+      "evidence": [
+        {
+          "section_id": "sec-863724360e",
+          "quote": "통제구역"
+        }
+      ]
+    },
+    {
+      "name": "제한구역",
+      "type": "other",
+      "evidence": [
+        {
+          "section_id": "sec-863724360e",
+          "quote": "제한구역"
+        }
+      ]
+    },
+    {
+      "name": "정보보호 사고 대응 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-dde6d0d5c6",
+          "quote": "정보보호 사고 대응 규정"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "통제구역에 방문자가 출입할 때 지켜야 할 사항은 무엇인가요?",
+      "answer": "통제구역 출입 시에는 반드시 승인된 임직원이 동행해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-180f8deb60",
+          "quote": "통제구역에서는 승인된 임직원이 동행한다."
+        }
+      ]
+    },
+    {
+      "question": "출입기록에서 이상이 발견되면 어떻게 해야 하나요?",
+      "answer": "정보보호 사고 대응 규정에 따라 보고해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-dde6d0d5c6",
+          "quote": "이상 출입이 발견되면 [정보보호 사고 대응 규정](REG-000009.md)에 따라 보고한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000009",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-dde6d0d5c6",
+          "quote": "이상 출입이 발견되면 [정보보호 사고 대응 규정](REG-000009.md)에 따라 보고한다."
+        }
+      ]
+    }
+  ]
+}

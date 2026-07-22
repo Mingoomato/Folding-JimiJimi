@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "MAN-000009",
+  "source_sha256": "13efbf4e275dd2f857893ad7ae0febae7e8173d3d76949df673369cb7c6e10d0",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 문서는 클라우드 환경의 보안 설정을 점검하기 위한 매뉴얼이다. 계정 권한, 네트워크 보안, 로그 관리 등 주요 점검 항목과 기준을 다룬다.",
+    "evidence": [
+      {
+        "section_id": "sec-63124abaa3",
+        "quote": "관리자 계정에 다중요소 인증이 적용되어 있는지, 장기 미사용 계정과 키가 남아 있지 않은지 확인한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "관리자 계정의 다중요소 인증 적용 및 미사용 계정 관리",
+      "evidence": [
+        {
+          "section_id": "sec-63124abaa3",
+          "quote": "관리자 계정에 다중요소 인증이 적용되어 있는지, 장기 미사용 계정과 키가 남아 있지 않은지 확인한다."
+        }
+      ]
+    },
+    {
+      "text": "네트워크 관리 포트, 공개 저장소, 방화벽 규칙에 대한 보안 기준 준수",
+      "evidence": [
+        {
+          "section_id": "sec-a9029c400f",
+          "quote": "관리 포트 | 승인된 출발지에서만 접근 가능 |"
+        }
+      ]
+    },
+    {
+      "text": "관리자 활동 및 설정 변경 로그의 중앙 저장소 전송 및 보관",
+      "evidence": [
+        {
+          "section_id": "sec-4bf84ceb27",
+          "quote": "관리자 활동과 중요 설정 변경 로그가 중앙 저장소로 전송되는지 확인한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "클라우드",
+    "설정점검",
+    "다중요소 인증",
+    "관리 포트",
+    "방화벽 규칙",
+    "중앙 저장소",
+    "클라우드 점검표",
+    "CSPM 점검절차"
+  ],
+  "entities": [
+    {
+      "name": "클라우드 서비스 이용 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-4bf84ceb27",
+          "quote": "적용 기준은 [클라우드 서비스 이용 규정](REG-000017.md)이다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "관리 포트의 정상 기준은 무엇인가요?",
+      "answer": "승인된 출발지에서만 접근이 가능해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-a9029c400f",
+          "quote": "관리 포트 | 승인된 출발지에서만 접근 가능 |"
+        }
+      ]
+    },
+    {
+      "question": "로그 점검 결과는 어떻게 보관해야 하나요?",
+      "answer": "예외 사항과 함께 보관해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-4bf84ceb27",
+          "quote": "점검 결과는 예외와 함께 보관한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000017",
+      "relation_type": "based_on",
+      "evidence": [
+        {
+          "section_id": "sec-4bf84ceb27",
+          "quote": "적용 기준은 [클라우드 서비스 이용 규정](REG-000017.md)이다."
+        }
+      ]
+    }
+  ]
+}

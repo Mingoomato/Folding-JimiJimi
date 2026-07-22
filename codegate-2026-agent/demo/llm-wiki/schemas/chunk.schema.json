@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codegate.local/schemas/chunk.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "chunk_id",
+    "document_id",
+    "file_version_id",
+    "section_id",
+    "section",
+    "heading_path",
+    "text",
+    "embedding_text",
+    "text_sha256",
+    "ordinal"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "chunk_id": {"type": "string", "minLength": 1},
+    "document_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$",
+      "maxLength": 96
+    },
+    "file_version_id": {"type": "string", "minLength": 1},
+    "section_id": {
+      "type": "string",
+      "pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+    },
+    "section": {"type": "string"},
+    "heading_path": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1
+    },
+    "text": {"type": "string", "minLength": 1},
+    "embedding_text": {"type": "string", "minLength": 1},
+    "text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ordinal": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

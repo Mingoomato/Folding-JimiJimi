@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codegate.local/schemas/manifest.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "file_version_id",
+    "title",
+    "doc_type",
+    "language",
+    "revision",
+    "status",
+    "authority_level",
+    "source",
+    "canonical_path",
+    "access",
+    "write_access",
+    "editability",
+    "tags",
+    "aliases",
+    "conversion"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$",
+      "maxLength": 96
+    },
+    "file_version_id": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "doc_type": {
+      "enum": [
+        "regulation",
+        "policy",
+        "procedure",
+        "manual",
+        "guide",
+        "specification",
+        "contract",
+        "report",
+        "meeting_note",
+        "general"
+      ]
+    },
+    "language": {"type": "string", "minLength": 2},
+    "revision": {"type": "string", "minLength": 1},
+    "status": {"enum": ["active", "inactive", "draft", "archived", "superseded"]},
+    "official_number": {"type": ["string", "null"]},
+    "authority_level": {"type": "string", "minLength": 1},
+    "issuing_org": {"type": ["string", "null"]},
+    "issued_on": {"type": ["string", "null"], "format": "date"},
+    "effective_from": {"type": ["string", "null"], "format": "date"},
+    "effective_to": {"type": ["string", "null"], "format": "date"},
+    "source": {
+      "type": "object",
+      "required": ["filename", "uri", "media_type", "sha256"],
+      "properties": {
+        "filename": {"type": "string", "minLength": 1},
+        "uri": {"type": "string", "pattern": "^source://"},
+        "media_type": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "canonical_path": {"type": "string", "pattern": "^docs/"},
+    "access": {"enum": ["public", "internal", "restricted"]},
+    "write_access": {"enum": ["none", "restricted", "allowed"]},
+    "editability": {"enum": ["editable", "read_only"]},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "aliases": {"type": "array", "items": {"type": "string"}},
+    "conversion": {
+      "type": "object",
+      "required": ["converter", "conversion_version", "converted_at", "status"],
+      "properties": {
+        "converter": {"type": "string", "minLength": 1},
+        "conversion_version": {"type": "string", "minLength": 1},
+        "converted_at": {"type": ["string", "null"], "format": "date-time"},
+        "status": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

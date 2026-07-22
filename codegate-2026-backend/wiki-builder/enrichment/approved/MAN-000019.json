@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "MAN-000019",
+  "source_sha256": "824c4421c14d0c2e3795ad4b3f2ff01ff94234e4ace0c6ac192d0efe8880c01b",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 문서는 2023년부터 2025년까지 운영된 레거시 VPN 클라이언트 접속 방식에 대한 기록이다. 현재는 사용이 중단된 구형 매뉴얼로, 과거 기록 해석을 위한 참조용으로만 보관된다.",
+    "evidence": [
+      {
+        "section_id": "sec-7fb753444c",
+        "quote": "이 매뉴얼은 더 이상 사용하지 않는 접속 방식에 대한 기록이다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "본 매뉴얼은 현재 사용이 중단된 구형 VPN 접속 방식에 대한 기록이다.",
+      "evidence": [
+        {
+          "section_id": "sec-7fb753444c",
+          "quote": "이 매뉴얼은 더 이상 사용하지 않는 접속 방식에 대한 기록이다."
+        }
+      ]
+    },
+    {
+      "text": "현재 원격접속 절차로 사용해서는 안 되며 신규 설치나 설정에 적용하지 않는다.",
+      "evidence": [
+        {
+          "section_id": "sec-7fb753444c",
+          "quote": "현재 원격접속 절차로 사용해서는 안 된다."
+        },
+        {
+          "section_id": "sec-868057bf14",
+          "quote": "신규 설치나 설정에는 적용하지 않는다."
+        }
+      ]
+    },
+    {
+      "text": "과거 장애 및 접속 기록 해석이 필요한 경우에만 참조용으로 활용한다.",
+      "evidence": [
+        {
+          "section_id": "sec-868057bf14",
+          "quote": "과거 장애와 접속 기록을 해석해야 하는 경우에만 참조한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "구형 VPN",
+    "레거시 VPN",
+    "원격접속",
+    "보관문서",
+    "레거시 VPN 클라이언트"
+  ],
+  "entities": [
+    {
+      "name": "레거시 VPN 클라이언트",
+      "type": "system",
+      "evidence": [
+        {
+          "section_id": "sec-7fb753444c",
+          "quote": "레거시 VPN 클라이언트에 적용되었다."
+        }
+      ]
+    },
+    {
+      "name": "원격근무 보안 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-868057bf14",
+          "quote": "현재의 보안 원칙은 [원격근무 보안 규정](REG-000006.md)을 확인한다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "이 매뉴얼을 현재 원격접속 설정에 사용해도 되나요?",
+      "answer": "아니요, 이 매뉴얼은 더 이상 사용하지 않는 방식에 대한 기록이므로 현재 원격접속 절차로 사용해서는 안 됩니다.",
+      "evidence": [
+        {
+          "section_id": "sec-7fb753444c",
+          "quote": "현재 원격접속 절차로 사용해서는 안 된다."
+        }
+      ]
+    },
+    {
+      "question": "현재의 보안 원칙은 어디서 확인할 수 있나요?",
+      "answer": "현재의 보안 원칙은 원격근무 보안 규정을 확인해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-868057bf14",
+          "quote": "현재의 보안 원칙은 [원격근무 보안 규정](REG-000006.md)을 확인한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000006",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-868057bf14",
+          "quote": "현재의 보안 원칙은 [원격근무 보안 규정](REG-000006.md)을 확인한다."
+        }
+      ]
+    }
+  ]
+}

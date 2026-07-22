@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "codegate-cloud-api"
+version = "0.1.0"
+description = "Google OAuth and session API for CODEGATE"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<0.29",
+  "pydantic-settings>=2.10,<3",
+  "PyJWT[crypto]>=2.10,<3",
+  "uvicorn>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.11,<0.12",
+]
+
+[project.scripts]
+codegate-cloud-api = "codegate_cloud_api.main:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/codegate_cloud_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

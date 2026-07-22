@@ -1,0 +1,49 @@
+/* Folding — Typography  (design system 원본 그대로)
+   Pretendard for everything (Latin + Hangul), JetBrains Mono for data. */
+
+:root {
+  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+
+  /* Font sizes */
+  --fs-display-2xl: 72px;
+  --fs-display-xl:  60px;
+  --fs-display-lg:  48px;
+  --fs-h1: 40px;
+  --fs-h2: 32px;
+  --fs-h3: 24px;
+  --fs-h4: 20px;
+  --fs-lg: 18px;
+  --fs-base: 16px;
+  --fs-sm: 14px;
+  --fs-xs: 13px;
+  --fs-2xs: 11px;
+
+  /* Weights */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-extrabold: 800;
+
+  /* Line heights */
+  --lh-tight: 1.08;
+  --lh-snug: 1.25;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.65;
+
+  /* Letter spacing */
+  --ls-tighter: -0.03em;
+  --ls-tight: -0.02em;
+  --ls-normal: -0.01em;
+  --ls-wide: 0.02em;
+  --ls-caps: 0.08em;
+
+  /* Semantic type roles */
+  --type-display: var(--fw-extrabold) var(--fs-display-lg)/var(--lh-tight) var(--font-sans);
+  --type-h1: var(--fw-bold) var(--fs-h1)/var(--lh-tight) var(--font-sans);
+  --type-h2: var(--fw-bold) var(--fs-h2)/var(--lh-snug) var(--font-sans);
+  --type-h3: var(--fw-semibold) var(--fs-h3)/var(--lh-snug) var(--font-sans);
+  --type-body: var(--fw-regular) var(--fs-base)/var(--lh-normal) var(--font-sans);
+  --type-mono: var(--fw-regular) var(--fs-sm)/var(--lh-normal) var(--font-mono);
+}

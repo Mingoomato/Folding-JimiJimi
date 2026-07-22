@@ -1,0 +1,13 @@
+documents: 50
+chunks: 148
+aliases: 100
+explicit_links: 38
+doc_types:
+  regulation: 20
+  manual: 20
+  report: 10
+statuses:
+  active: 44
+  archived: 2
+  draft: 3
+  superseded: 1

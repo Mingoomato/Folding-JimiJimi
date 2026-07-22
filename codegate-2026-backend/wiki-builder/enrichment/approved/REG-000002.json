@@ -1,0 +1,134 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REG-000002",
+  "source_sha256": "f65690e6b43492339ae1c64b0b43dcad881d2ef196d63fe85a85617e88dfb7f3",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 규정은 조직 내 계정 발급 원칙과 접근권한의 정기적인 검토 주기 및 승인자를 정의한다. 또한 퇴직이나 부서 이동 시 권한 회수 절차를 명시하여 보안을 강화한다.",
+    "evidence": [
+      {
+        "section_id": "sec-8b660d495c",
+        "quote": "계정은 승인된 업무 목적에 한해 개인별로 발급한다."
+      },
+      {
+        "section_id": "sec-f69b751924",
+        "quote": "퇴직 또는 계약 종료 계정은 종료일 당일 비활성화한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "계정은 개인별 발급이 원칙이며 공유 계정은 제한적으로 허용된다.",
+      "evidence": [
+        {
+          "section_id": "sec-8b660d495c",
+          "quote": "계정은 승인된 업무 목적에 한해 개인별로 발급한다. 공유 계정은 원칙적으로 금지하며 불가피한 경우 소유자와 종료일을 등록한다."
+        }
+      ]
+    },
+    {
+      "text": "정보시스템 중요도에 따라 권한 검토 주기를 차등 적용한다.",
+      "evidence": [
+        {
+          "section_id": "sec-81f23ad635",
+          "quote": "일반 업무시스템 | 반기 | 부서장 |"
+        }
+      ]
+    },
+    {
+      "text": "퇴직 시 즉시 비활성화하고 부서 이동 시 3영업일 이내 권한을 회수한다.",
+      "evidence": [
+        {
+          "section_id": "sec-f69b751924",
+          "quote": "퇴직 또는 계약 종료 계정은 종료일 당일 비활성화한다. 부서 이동으로 불필요해진 권한은 3영업일 이내 회수한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "계정 발급",
+    "권한 검토",
+    "권한 회수",
+    "공유 계정",
+    "특권 계정",
+    "접근통제",
+    "계정관리"
+  ],
+  "entities": [
+    {
+      "name": "부서장",
+      "type": "role",
+      "evidence": [
+        {
+          "section_id": "sec-81f23ad635",
+          "quote": "부서장"
+        }
+      ]
+    },
+    {
+      "name": "시스템 책임자",
+      "type": "role",
+      "evidence": [
+        {
+          "section_id": "sec-81f23ad635",
+          "quote": "시스템 책임자"
+        }
+      ]
+    },
+    {
+      "name": "정보보호 책임자",
+      "type": "role",
+      "evidence": [
+        {
+          "section_id": "sec-81f23ad635",
+          "quote": "정보보호 책임자"
+        }
+      ]
+    },
+    {
+      "name": "사용자 계정 운영 매뉴얼",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-f69b751924",
+          "quote": "사용자 계정 운영 매뉴얼"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "특권 계정의 권한 검토 주기는 어떻게 됩니까?",
+      "answer": "특권 계정은 매월 정보보호 책임자가 검토해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-81f23ad635",
+          "quote": "특권 계정 | 매월 | 정보보호 책임자 |"
+        }
+      ]
+    },
+    {
+      "question": "부서 이동 시 권한 회수는 언제까지 해야 합니까?",
+      "answer": "부서 이동으로 불필요해진 권한은 3영업일 이내에 회수해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-f69b751924",
+          "quote": "부서 이동으로 불필요해진 권한은 3영업일 이내 회수한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "MAN-000001",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-f69b751924",
+          "quote": "실무 절차는 [사용자 계정 운영 매뉴얼](MAN-000001.md)을 참고한다."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+"""CODEGATE cloud authentication API."""

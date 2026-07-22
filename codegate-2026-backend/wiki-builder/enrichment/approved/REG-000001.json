@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REG-000001",
+  "source_sha256": "8d2a8ec08c00a21dce9cf7755c6191014afd16d344d6e5b4e2574ed61331f429",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 규정은 조직의 정보자산을 보호하기 위한 기본 원칙과 책임을 정의한다. 임직원 및 외부 협력사를 포함한 모든 정보시스템 사용자를 적용 대상으로 한다.",
+    "evidence": [
+      {
+        "section_id": "sec-1ee4380e59",
+        "quote": "이 규정은 조직의 정보자산을 안전하게 보호하고 정보보호 업무의 기본 원칙과 책임을 정하는 것을 목적으로 한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "정보보호 업무의 기본 원칙과 책임을 규정함",
+      "evidence": [
+        {
+          "section_id": "sec-1ee4380e59",
+          "quote": "이 규정은 조직의 정보자산을 안전하게 보호하고 정보보호 업무의 기본 원칙과 책임을 정하는 것을 목적으로 한다."
+        }
+      ]
+    },
+    {
+      "text": "임직원, 계약직, 외부 협력사 등 모든 정보시스템 사용자에게 적용",
+      "evidence": [
+        {
+          "section_id": "sec-ebcad3ef3a",
+          "quote": "이 규정은 임직원, 계약직, 외부 협력사 및 조직의 정보시스템을 사용하는 모든 사람에게 적용한다."
+        }
+      ]
+    },
+    {
+      "text": "최소 접근 원칙, 정보 보호, 보안사고 신고 의무 준수",
+      "evidence": [
+        {
+          "section_id": "sec-4add72bd56",
+          "quote": "1. 업무상 필요한 최소한의 정보에만 접근한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "정보보호",
+    "정보자산",
+    "보안사고",
+    "계정 관리",
+    "접근권한",
+    "정보시스템",
+    "보안규정"
+  ],
+  "entities": [
+    {
+      "name": "계정 및 접근권한 관리 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-4add72bd56",
+          "quote": "계정 및 접근권한 관리 규정"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "이 규정은 누구에게 적용됩니까?",
+      "answer": "임직원, 계약직, 외부 협력사 및 조직의 정보시스템을 사용하는 모든 사람에게 적용됩니다.",
+      "evidence": [
+        {
+          "section_id": "sec-ebcad3ef3a",
+          "quote": "이 규정은 임직원, 계약직, 외부 협력사 및 조직의 정보시스템을 사용하는 모든 사람에게 적용한다."
+        }
+      ]
+    },
+    {
+      "question": "계정 관리 기준은 어디에서 확인할 수 있습니까?",
+      "answer": "계정 및 접근권한 관리 규정을 따라야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-4add72bd56",
+          "quote": "세부적인 계정 관리 기준은 [계정 및 접근권한 관리 규정](REG-000002.md)을 따른다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000002",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-4add72bd56",
+          "quote": "세부적인 계정 관리 기준은 [계정 및 접근권한 관리 규정](REG-000002.md)을 따른다."
+        }
+      ]
+    }
+  ]
+}

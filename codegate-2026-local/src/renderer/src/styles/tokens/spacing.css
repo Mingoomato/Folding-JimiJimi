@@ -1,0 +1,28 @@
+/* Folding — Spacing & layout scale (4px base)  (design system 원본 그대로) */
+:root {
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* Layout */
+  --container-max: 1200px;
+  --container-narrow: 760px;
+  --gutter: 24px;
+  --section-y: 112px;
+
+  /* ---- Folding 앱 셸 (스펙 v1.3 §3 — 3분할) ---- */
+  --pane-chatlist: 260px;  /* 좌: 채팅 목록 */
+  --pane-tree: 320px;      /* 우: 디렉터리 트리 + 진행률 */
+  --topbar-h: 56px;
+}

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      CSP는 여기 두지 않는다.
+      개발 중에는 @vitejs/plugin-react 가 react-refresh 프리앰블을 **인라인 스크립트**로
+      주입하는데, 프로덕션용 `script-src 'self'` 가 그걸 막아 화면이 하얗게 뜬다.
+      그렇다고 'unsafe-inline' 을 넣으면 배포본까지 약해진다.
+      → 엄격한 CSP는 electron.vite.config.ts 의 cspPlugin 이 **빌드 시에만** 주입한다.
+    -->
+    <title>Folding</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

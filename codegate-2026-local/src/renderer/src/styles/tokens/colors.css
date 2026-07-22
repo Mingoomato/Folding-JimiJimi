@@ -1,0 +1,65 @@
+/* Folding — Color system  (design system 원본 그대로. 수정 금지 — 업스트림 동기화 대상)
+   Brand blue sampled from the folder mark (#2B5DFD family).
+   Ink is a cool navy sampled from the wordmark (#0D1630). */
+
+:root {
+  /* ---- Brand: Folding Blue ---- */
+  --blue-50:  #EEF3FF;
+  --blue-100: #DCE6FF;
+  --blue-200: #BBCCFF;
+  --blue-300: #8DAEFE;
+  --blue-400: #5C86FE;
+  --blue-500: #2B5DFD; /* primary */
+  --blue-600: #1E48E0;
+  --blue-700: #1838B4;
+  --blue-800: #16298C;
+
+  /* ---- Ink: cool navy neutrals ---- */
+  --ink-950: #0D1630; /* wordmark / strongest text */
+  --ink-900: #141E3D;
+  --ink-800: #1F2A4D;
+  --ink-700: #2E3A5E;
+  --ink-600: #465172;
+  --ink-500: #5B6480; /* muted body */
+  --ink-400: #8A92AB;
+  --ink-300: #B4BACB;
+  --ink-200: #D6DAE4;
+  --ink-150: #E4E7EE;
+  --ink-100: #EEF0F4; /* hairline borders */
+  --ink-50:  #F7F8FA; /* subtle surface */
+  --white:   #FFFFFF;
+
+  /* ---- Semantic accents ---- */
+  --green-600:#0E8A57; --green-500:#16A46B; --green-100:#CFF0E0; --green-50:#E7F7EF;
+  --amber-600:#D2860B; --amber-500:#F5A623; --amber-100:#FBE6C0; --amber-50:#FEF4E2;
+  --red-600:  #CE3439; --red-500:  #E5484D; --red-100:  #F9D2D4; --red-50:  #FDEBEC;
+
+  /* ---- Brand gradients (folder mark: light top -> deep bottom) ---- */
+  --gradient-brand: linear-gradient(150deg, #5C86FE 0%, #2B5DFD 55%, #1E48E0 100%);
+  --gradient-brand-soft: linear-gradient(160deg, #EEF3FF 0%, #DCE6FF 100%);
+  --gradient-ink: linear-gradient(155deg, #1F2A4D 0%, #0D1630 100%);
+
+  /* ============ Semantic aliases ============ */
+  --text-strong:  var(--ink-950);
+  --text-body:    var(--ink-800);
+  --text-muted:   var(--ink-500);
+  --text-subtle:  var(--ink-400);
+  --text-inverse: var(--white);
+  --text-brand:   var(--blue-500);
+  --text-link:    var(--blue-600);
+
+  --surface-page:    var(--white);
+  --surface-card:    var(--white);
+  --surface-subtle:  var(--ink-50);
+  --surface-sunken:  var(--ink-100);
+  --surface-brand:   var(--blue-500);
+  --surface-brand-soft: var(--blue-50);
+  --surface-inverse: var(--ink-950);
+
+  --border-subtle:  var(--ink-100);
+  --border-default: var(--ink-150);
+  --border-strong:  var(--ink-200);
+  --border-brand:   var(--blue-500);
+
+  --focus-ring: 0 0 0 3px rgba(43,93,253,.35);
+}

@@ -1,0 +1,56 @@
+[project]
+name = "codegate-2026-backend"
+version = "0.1.0"
+description = "FastAPI backend for the CODEGATE 2026 document agent"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "claude-agent-sdk>=0.2.124,<0.3",
+  "fastapi>=0.116.0,<1",
+  "httpx>=0.28.0,<0.29",
+  "jsonschema>=4.23.0,<5",
+  "markdown-it-py>=3.0,<4",
+  "PyJWT[crypto]>=2.13.0,<3",
+  "pydantic-settings>=2.10.0,<3",
+  "python-dotenv>=1.1,<2",
+  "PyYAML>=6.0,<7",
+  "uvicorn[standard]>=0.35.0,<1",
+]
+
+[project.scripts]
+codegate-local = "codegate_api.cli:main"
+
+[dependency-groups]
+dev = [
+  "httpx2>=2.7.0,<3",
+  "mypy>=1.17.0,<2",
+  "pytest>=8.4.0,<10",
+  "pytest-cov>=6.2.0,<8",
+  "ruff>=0.12.0,<1",
+  "types-jsonschema>=4.23.0,<5",
+  "types-PyYAML>=6.0.0,<7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/codegate_api"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["codegate_api"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=codegate_api --cov-report=term-missing"
+testpaths = ["tests"]

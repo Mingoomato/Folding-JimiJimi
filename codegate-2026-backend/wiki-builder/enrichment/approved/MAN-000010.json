@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "MAN-000010",
+  "source_sha256": "cf670bd606b4e0b49ed1738cda0a893220268ca3f23d5febc61efce197450db7",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 매뉴얼은 데이터 백업 복구 시험의 계획 수립, 수행 절차 및 결과 기록 방법을 정의한다. 운영 환경에 영향을 주지 않는 격리된 환경에서 시험을 진행하며, 결과 기록 시 관련 규정을 준수해야 한다.",
+    "evidence": [
+      {
+        "section_id": "sec-1c2c4c687e",
+        "quote": "운영환경에 영향을 주지 않는 격리된 환경을 사용한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "시험 계획 단계에서 대상, 복구 시점, 목표 시간 및 담당자를 지정한다.",
+      "evidence": [
+        {
+          "section_id": "sec-1c2c4c687e",
+          "quote": "시험 대상, 복구 시점, 목표시간, 검증 담당자와 데이터 보호 방법을 정한다."
+        }
+      ]
+    },
+    {
+      "text": "시험 수행 시 파일 수, 데이터 범위, 애플리케이션 기능 및 권한 설정을 검증한다.",
+      "evidence": [
+        {
+          "section_id": "sec-ae8e6b99cf",
+          "quote": "백업본을 복구한 뒤 파일 수, 데이터 범위, 애플리케이션 기능 및 권한 설정을 확인한다."
+        }
+      ]
+    },
+    {
+      "text": "시험 결과 기록 시 소요시간, 성공 여부, 차이 원인, 후속조치 등을 포함한다.",
+      "evidence": [
+        {
+          "section_id": "sec-c1ad4a29cd",
+          "quote": "| 시작·종료 | 실제 소요시간 |"
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "데이터 백업",
+    "복구 시험",
+    "복구 테스트 매뉴얼",
+    "백업 검증절차",
+    "격리된 환경",
+    "데이터 보호"
+  ],
+  "entities": [
+    {
+      "name": "데이터 백업 및 복구 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-c1ad4a29cd",
+          "quote": "관련 기준은 [데이터 백업 및 복구 규정](REG-000010.md)을 따른다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "데이터 백업 복구 시험은 어떤 환경에서 수행해야 합니까?",
+      "answer": "운영환경에 영향을 주지 않는 격리된 환경을 사용해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-1c2c4c687e",
+          "quote": "운영환경에 영향을 주지 않는 격리된 환경을 사용한다."
+        }
+      ]
+    },
+    {
+      "question": "시험 결과 기록 시 어떤 기준을 따라야 합니까?",
+      "answer": "데이터 백업 및 복구 규정을 따라야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-c1ad4a29cd",
+          "quote": "관련 기준은 [데이터 백업 및 복구 규정](REG-000010.md)을 따른다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000010",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-c1ad4a29cd",
+          "quote": "관련 기준은 [데이터 백업 및 복구 규정](REG-000010.md)을 따른다."
+        }
+      ]
+    }
+  ]
+}

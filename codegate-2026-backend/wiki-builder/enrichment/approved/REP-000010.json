@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REP-000010",
+  "source_sha256": "43894a7c267022b88c3744d9b38a55bcb34338f61104ce59c6a935c14dc7bc2b",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 문서는 LLM 위키 샘플 구축 과정에서 문서 데이터가 검색용으로 안정적으로 변환되는지 확인하기 위한 검증 보고서이다. 스키마 검증, ID 유일성, 내부 링크, 청킹 결과 및 검색 제외 필터 등을 주요 검증 항목으로 다룬다.",
+    "evidence": [
+      {
+        "section_id": "sec-502c8a88d2",
+        "quote": "문서 ID, front matter, 문서 간 링크, 표, 목록, 각주 및 상태 필터가 검색용 데이터로 안정적으로 변환되는지 확인한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "검색용 데이터 변환 안정성 확인",
+      "evidence": [
+        {
+          "section_id": "sec-502c8a88d2",
+          "quote": "문서 ID, front matter, 문서 간 링크, 표, 목록, 각주 및 상태 필터가 검색용 데이터로 안정적으로 변환되는지 확인한다."
+        }
+      ]
+    },
+    {
+      "text": "주요 검증 항목으로 스키마, ID 유일성, 링크, 청킹, 검색 제외 필터 설정",
+      "evidence": [
+        {
+          "section_id": "sec-59d557845a",
+          "quote": "- 스키마 검증 성공 여부\n- 문서와 청크 ID의 유일성\n- 내부 링크의 대상 존재 여부\n- 표와 목록의 청킹 결과\n- 폐지·초안 문서의 기본 검색 제외 여부"
+        }
+      ]
+    },
+    {
+      "text": "현재 문서는 초안 상태이며 정량 평가는 후속 버전에서 진행 예정",
+      "evidence": [
+        {
+          "section_id": "sec-11cbb078b8",
+          "quote": "이 문서는 샘플 데이터 구축 과정에서 작성된 초안이다. 실제 빌더와 OpenClaw 검색 결과를 이용한 정량 평가는 후속 버전에서 추가한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "LLM위키",
+    "검증보고서",
+    "위키 파일럿 보고서",
+    "RAG 샘플 검증",
+    "스키마 검증",
+    "청킹",
+    "검색 제외"
+  ],
+  "entities": [
+    {
+      "name": "OpenClaw",
+      "type": "system",
+      "evidence": [
+        {
+          "section_id": "sec-11cbb078b8",
+          "quote": "OpenClaw"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "이 보고서의 주요 검증 목적은 무엇인가?",
+      "answer": "문서 ID, front matter, 문서 간 링크, 표, 목록, 각주 및 상태 필터가 검색용 데이터로 안정적으로 변환되는지 확인하는 것이다.",
+      "evidence": [
+        {
+          "section_id": "sec-502c8a88d2",
+          "quote": "문서 ID, front matter, 문서 간 링크, 표, 목록, 각주 및 상태 필터가 검색용 데이터로 안정적으로 변환되는지 확인한다."
+        }
+      ]
+    },
+    {
+      "question": "정량 평가는 언제 수행되는가?",
+      "answer": "현재 문서는 초안이므로 실제 빌더와 OpenClaw 검색 결과를 이용한 정량 평가는 후속 버전에서 추가될 예정이다.",
+      "evidence": [
+        {
+          "section_id": "sec-11cbb078b8",
+          "quote": "실제 빌더와 OpenClaw 검색 결과를 이용한 정량 평가는 후속 버전에서 추가한다."
+        }
+      ]
+    }
+  ],
+  "relations": []
+}

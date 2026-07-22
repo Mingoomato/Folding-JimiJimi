@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "MAN-000002",
+  "source_sha256": "e7c9464c3713a983ca4b5508d8a4e2fe0ee3b2095ffdf1f876cea330f400abd4",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 문서는 개인정보 요청 접수부터 처리, 제한 사항까지의 절차를 규정한 매뉴얼이다. 요청 접수 시 본인 확인 범위를 제한하고, 처리 단계별 담당자와 확인 사항을 명시한다.",
+    "evidence": [
+      {
+        "section_id": "sec-303ecedbb0",
+        "quote": "요청일, 요청 유형, 대상 정보 및 회신 방법을 기록한다."
+      },
+      {
+        "section_id": "sec-4ef26cf9d7",
+        "quote": "접수 | 고객지원 | 요청 내용과 연락처"
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "요청 접수 시 본인 확인 정보는 처리 목적에 필요한 범위로 제한한다.",
+      "evidence": [
+        {
+          "section_id": "sec-303ecedbb0",
+          "quote": "본인 확인에 필요한 정보는 요청 처리 목적에 필요한 범위로 제한한다."
+        }
+      ]
+    },
+    {
+      "text": "개인정보 요청 처리는 접수, 검토, 조회, 회신의 4단계 흐름으로 진행된다.",
+      "evidence": [
+        {
+          "section_id": "sec-4ef26cf9d7",
+          "quote": "접수 | 고객지원 | 요청 내용과 연락처"
+        }
+      ]
+    },
+    {
+      "text": "제3자 권리 침해 등 처리 제한 사유 발생 시 근거와 대체 조치를 안내해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-3081b43f8d",
+          "quote": "제3자의 권리를 침해하거나 법령상 제한 사유가 있는 경우 근거와 가능한 대체 조치를 함께 안내한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "개인정보",
+    "정보주체요청",
+    "열람요청",
+    "민원절차",
+    "본인 확인",
+    "처리 흐름",
+    "처리 제한"
+  ],
+  "entities": [
+    {
+      "name": "개인정보보호팀",
+      "type": "organization",
+      "evidence": [
+        {
+          "section_id": "sec-4ef26cf9d7",
+          "quote": "검토 | 개인정보보호팀 | 법적 제한 및 본인 여부"
+        }
+      ]
+    },
+    {
+      "name": "고객지원",
+      "type": "role",
+      "evidence": [
+        {
+          "section_id": "sec-4ef26cf9d7",
+          "quote": "접수 | 고객지원 | 요청 내용과 연락처"
+        }
+      ]
+    },
+    {
+      "name": "시스템 담당",
+      "type": "role",
+      "evidence": [
+        {
+          "section_id": "sec-4ef26cf9d7",
+          "quote": "조회 | 시스템 담당 | 대상 데이터와 보유 위치"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "개인정보 요청 처리 시 본인 확인 정보는 어디까지 수집할 수 있나요?",
+      "answer": "요청 처리 목적에 필요한 범위로 제한하여 수집해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-303ecedbb0",
+          "quote": "본인 확인에 필요한 정보는 요청 처리 목적에 필요한 범위로 제한한다."
+        }
+      ]
+    },
+    {
+      "question": "개인정보 요청 처리가 제한되는 경우는 언제인가요?",
+      "answer": "제3자의 권리를 침해하거나 법령상 제한 사유가 있는 경우입니다.",
+      "evidence": [
+        {
+          "section_id": "sec-3081b43f8d",
+          "quote": "제3자의 권리를 침해하거나 법령상 제한 사유가 있는 경우 근거와 가능한 대체 조치를 함께 안내한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000003",
+      "relation_type": "based_on",
+      "evidence": [
+        {
+          "section_id": "sec-3081b43f8d",
+          "quote": "관련 기준은 [개인정보 처리 규정](REG-000003.md)을 따른다."
+        }
+      ]
+    }
+  ]
+}

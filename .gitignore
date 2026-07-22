@@ -1,0 +1,12 @@
+.env
+.runtime/
+**/.venv/
+**/node_modules/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/__pycache__/
+**/*.py[cod]
+**/.cache/
+codegate-2026-local/out/
+codegate-2026-local/dist/

@@ -1,0 +1,80 @@
+flowchart TB
+
+    USER["🧑 사용자"]
+
+    subgraph APP["Electron 앱 〔codegate-2026-local · 우창〕"]
+        direction TB
+        UI["렌더러 · React/shadcn<br/>screens: Login · Onboarding · Main · Settings<br/>ChatList · MessageBubble · CitationChip · ApprovalModal"]
+
+        subgraph MAIN["메인 프로세스 (Node)"]
+            direction TB
+            AUTH["auth/<br/>Supabase OAuth · PKCE<br/>루프백 콜백 · safeStorage"]
+            BUILD["build/ — 빌드 오케스트레이터<br/>① convert → ② enrich(LLM 직접) → ③ assemble<br/>임시 검증 → 원자적 승격"]
+            KORDOC["kordoc/<br/>real · mock · atomic<br/>변환 · 서식 보존 패치"]
+            WATCH["watcher/<br/>변경 감지 → 증분 재빌드"]
+            DB["db/ SQLite<br/>파일 상태 · 대화"]
+            AGENT["agent/loader<br/>→ sidecar-agent | mock-agent"]
+            SC["sidecar/client<br/>Python 백엔드 HTTP"]
+            AGENT --> SC
+        end
+        UI <==>|"IPC · AgentEvent"| MAIN
+    end
+
+    subgraph CORE["코어 패키지 (동적 import · 환경변수로 교체 가능)"]
+        direction LR
+        CONV["@codegate/convert 〔민규〕<br/>kordoc 어댑터 → INPUT_CONTRACT md"]
+        WB["@codegate/wiki-builder 〔용휘〕<br/>chunks · manifest · links · 조립"]
+    end
+
+    subgraph SIDE["codegate-local sidecar (Python) 〔성주 · codegate-2026-agent〕"]
+        direction TB
+        CHAT["chat · change-plan · execution<br/>Claude Agent SDK (내장 도구 비활성)"]
+        WRITE["쓰기 트랜잭션<br/>exact diff → plan_hash → 승인<br/>→ backup → atomic replace → outbox → Undo"]
+        WBS["WikiBuildService<br/>편집 후 재빌드 (같은 용휘 코어)"]
+        CHAT --> WRITE --> WBS
+    end
+
+    STORE["📦 로컬 위키 저장소<br/>builds/CAS-id (불변) + current.json<br/>★ 두 빌더가 같은 루트를 공유해야 함"]
+    FS["📁 원본 파일 · 정본"]
+
+    subgraph CLOUD["클라우드"]
+        direction LR
+        SUPA["Supabase Auth<br/>로그인·구독"]
+        BE["Backend JWKS 검증<br/>/auth/me"]
+        LLM["LLM 제공자<br/>enrichment · 유일한 비용 지점"]
+        ANT["Anthropic API<br/>에이전트 추론"]
+    end
+
+    USER <==> UI
+    AUTH ==>|"OAuth · PKCE · 시스템 브라우저"| SUPA
+    AUTH ==>|"Bearer"| BE
+    FS ==>|"원본 읽기"| BUILD
+    BUILD -.->|"코어 호출"| CONV
+    BUILD -.->|"코어 호출"| WB
+    BUILD <==>|"enrichment 호출<br/>동시성4 · 재시도 · 해시 재사용"| LLM
+    KORDOC --- BUILD
+    WATCH -.-> BUILD
+    BUILD ==>|"A. 초기·대량 빌드<br/>원자적 승격"| STORE
+    SC <==>|"loopback"| CHAT
+    CHAT <-->|"추론"| ANT
+    CHAT -.->|"근거 검색"| STORE
+    WRITE ==>|"승인된 편집"| FS
+    WBS ==>|"B. 편집 후 증분 재빌드<br/>CAS · 멱등"| STORE
+
+    classDef ui fill:#ece8f5,stroke:#6b5ca5,color:#463c6e
+    classDef build fill:#e3f2ef,stroke:#0e8a7b,color:#0e5a50,stroke-width:2px
+    classDef kordoc fill:#f7ecdf,stroke:#b96a24,color:#7a4517,stroke-width:2px
+    classDef side fill:#f0eefb,stroke:#6b5ca5,color:#3d3560
+    classDef store fill:#fdf2e0,stroke:#b96a24,color:#7a4517,stroke-width:3px
+    classDef cloud fill:#fdecec,stroke:#c05252,color:#8a3030
+    classDef core fill:#e6edf5,stroke:#3d5a80,color:#27394f
+    classDef user fill:#fff,stroke:#888,color:#333
+
+    class USER user
+    class UI,AUTH,WATCH,DB,AGENT,SC ui
+    class BUILD build
+    class KORDOC,FS kordoc
+    class CHAT,WRITE,WBS side
+    class STORE store
+    class SUPA,BE,LLM,ANT cloud
+    class CONV,WB core

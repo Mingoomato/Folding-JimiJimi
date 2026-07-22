@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "MAN-000007",
+  "source_sha256": "e5e358a0cbf2a6d1acaac25a2c00b8956f6164446b983e0ab799e93cff64c869",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 문서는 시스템 변경 작업 시 준수해야 할 단계별 절차를 정의한 매뉴얼이다. 작업 전 준비 사항부터 작업 중 기록, 작업 후 결과 보고까지의 과정을 포함한다.",
+    "evidence": [
+      {
+        "section_id": "sec-5350c0a5a4",
+        "quote": "1. 작업 전"
+      },
+      {
+        "section_id": "sec-2889de6f29",
+        "quote": "3. 작업 후"
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "작업 전 승인번호 확인, 영향 범위 파악, 백업 생성 및 되돌리기 조건을 확인해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-5350c0a5a4",
+          "quote": "- [ ] 승인번호 확인"
+        }
+      ]
+    },
+    {
+      "text": "작업 중에는 계획된 시각과 결과를 기록하며, 오류 발생 시 임의로 범위를 확대하지 않는다.",
+      "evidence": [
+        {
+          "section_id": "sec-43bb141fee",
+          "quote": "계획된 단계별 시작·종료 시각과 결과를 기록한다. 예상하지 못한 오류가 발생하면 임의로 범위를 확대하지 않는다."
+        }
+      ]
+    },
+    {
+      "text": "작업 후에는 핵심 기능과 모니터링 상태를 확인하고 승인자에게 결과를 보고해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-2889de6f29",
+          "quote": "핵심 기능과 모니터링 상태를 확인하고 변경 결과를 승인자에게 알린다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "변경작업",
+    "운영절차",
+    "승인번호",
+    "백업",
+    "복구 지점",
+    "되돌리기 조건",
+    "변경 결과",
+    "모니터링"
+  ],
+  "entities": [
+    {
+      "name": "정보시스템 변경관리 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-2889de6f29",
+          "quote": "상위 기준은 [정보시스템 변경관리 규정](REG-000011.md)이다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "작업 중 오류가 발생하면 어떻게 해야 하나요?",
+      "answer": "계획된 단계별 시작·종료 시각과 결과를 기록하고, 임의로 작업 범위를 확대하지 않아야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-43bb141fee",
+          "quote": "계획된 단계별 시작·종료 시각과 결과를 기록한다. 예상하지 못한 오류가 발생하면 임의로 범위를 확대하지 않는다."
+        }
+      ]
+    },
+    {
+      "question": "작업이 실패했을 때도 기록을 남겨야 하나요?",
+      "answer": "네, 실패한 작업도 동일하게 기록해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-2889de6f29",
+          "quote": "실패한 작업도 동일하게 기록한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000011",
+      "relation_type": "based_on",
+      "evidence": [
+        {
+          "section_id": "sec-2889de6f29",
+          "quote": "상위 기준은 [정보시스템 변경관리 규정](REG-000011.md)이다."
+        }
+      ]
+    }
+  ]
+}

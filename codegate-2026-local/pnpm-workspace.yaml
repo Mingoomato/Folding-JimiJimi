@@ -1,0 +1,10 @@
+packages:
+  - 'packages/*'
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  esbuild: true
+  # kordoc의 로컬 문서 분석/이미지 의존성. lockfile에 고정된 native binary만 허용한다.
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true

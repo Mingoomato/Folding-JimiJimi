@@ -1,0 +1,1 @@
+"""Replaceable team-service adapters."""

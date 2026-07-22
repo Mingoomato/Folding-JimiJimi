@@ -1,0 +1,24 @@
+# secrets — never commit real values
+.env
+*.pem
+*.key
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# docker / db volumes
+*.db
+*.sqlite3
+
+# os / editor
+.DS_Store
+Thumbs.db
+.obsidian/

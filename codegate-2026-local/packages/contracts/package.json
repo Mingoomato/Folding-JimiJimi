@@ -1,0 +1,15 @@
+{
+  "name": "@codegate/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "레포 간 인터페이스 계약 — codegate-2026-local ↔ codegate-2026-agent ↔ backend (스펙 v1.3 §2)",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ]
+}

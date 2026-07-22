@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REG-000017",
+  "source_sha256": "70513550a4f7deb3b39db7b8a73fa0a99c97ed2dee3b7da105cfc2e635795715",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 규정은 클라우드 서비스의 도입부터 종료까지의 절차와 책임 범위를 정의한다. 서비스 도입 시 검토 사항과 책임 공유 모델, 그리고 서비스 종료 시 데이터 반출 및 계정 관리 절차를 명시하고 있다.",
+    "evidence": [
+      {
+        "section_id": "sec-60aa5a60cd",
+        "quote": "클라우드 서비스 도입 전 데이터 종류, 저장 위치, 관리자 권한, 계약 종료 시 데이터 반환 방법을 검토한다."
+      },
+      {
+        "section_id": "sec-ffe0bebdd2",
+        "quote": "서비스 종료 시 다음을 확인한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "클라우드 서비스 도입 전 데이터 관리 및 계약 종료 시 반환 방법을 사전 검토해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-60aa5a60cd",
+          "quote": "클라우드 서비스 도입 전 데이터 종류, 저장 위치, 관리자 권한, 계약 종료 시 데이터 반환 방법을 검토한다."
+        }
+      ]
+    },
+    {
+      "text": "서비스 제공자와 조직 간의 보안 책임 범위를 구분하여 문서화해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-a332f17393",
+          "quote": "서비스 제공자의 보호조치와 조직이 직접 수행해야 하는 설정을 구분하여 문서화한다."
+        }
+      ]
+    },
+    {
+      "text": "서비스 종료 시 데이터 반출, 계정 제거, 키/토큰 폐기 및 데이터 삭제 확인 절차를 준수해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-ffe0bebdd2",
+          "quote": "서비스 종료 시 다음을 확인한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "클라우드 서비스",
+    "도입 승인",
+    "책임 공유",
+    "종료 절차",
+    "데이터 반환",
+    "계정 제거",
+    "설정 점검"
+  ],
+  "entities": [
+    {
+      "name": "클라우드 보안점검 매뉴얼",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-ffe0bebdd2",
+          "quote": "클라우드 보안점검 매뉴얼"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "클라우드 서비스 도입 전 어떤 사항을 검토해야 하나요?",
+      "answer": "데이터 종류, 저장 위치, 관리자 권한, 계약 종료 시 데이터 반환 방법을 검토해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-60aa5a60cd",
+          "quote": "클라우드 서비스 도입 전 데이터 종류, 저장 위치, 관리자 권한, 계약 종료 시 데이터 반환 방법을 검토한다."
+        }
+      ]
+    },
+    {
+      "question": "서비스 종료 시 수행해야 할 보안 조치는 무엇인가요?",
+      "answer": "데이터 반출, 사용자 및 관리자 계정 제거, 연동 키와 토큰 폐기, 제공자 측 데이터 삭제 확인을 수행해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-ffe0bebdd2",
+          "quote": "서비스 종료 시 다음을 확인한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "MAN-000009",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-ffe0bebdd2",
+          "quote": "설정 점검은 [클라우드 보안점검 매뉴얼](MAN-000009.md)을 따른다."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/schemas/chunk.schema.json",
+  "title": "LLM Wiki Chunk Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "wiki_version", "chunk_id", "doc_id", "revision", "ordinal",
+    "section_id", "heading_path", "chunk_type", "text", "embedding_text", "char_count",
+    "source_path", "source_chunk_no", "source_input_path", "source_input_sha256",
+    "content_sha256", "status", "effective_from", "effective_to", "tags", "access"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "wiki_version": {"type": "string"},
+    "chunk_id": {"type": "string", "minLength": 1},
+    "doc_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$", "maxLength": 96},
+    "revision": {"type": "string"},
+    "ordinal": {"type": "integer", "minimum": 1},
+    "section_id": {"type": "string", "pattern": "^sec-[0-9a-f]{10}$"},
+    "heading_path": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}},
+    "chunk_type": {"enum": ["section", "section-part", "source-fragment"]},
+    "text": {"type": "string", "minLength": 1},
+    "embedding_text": {"type": "string", "minLength": 1},
+    "char_count": {"type": "integer", "minimum": 1},
+    "source_path": {"type": "string", "pattern": "^docs/.+\\.md$"},
+    "source_chunk_no": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "source_input_path": {"type": "string", "pattern": "^source-md/.+\\.md$"},
+    "source_input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {"enum": ["active", "draft", "archived", "superseded"]},
+    "effective_from": {"type": ["string", "null"]},
+    "effective_to": {"type": ["string", "null"]},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "access": {"enum": ["public", "internal", "restricted"]}
+  }
+}

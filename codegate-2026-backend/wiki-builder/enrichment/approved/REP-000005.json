@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REP-000005",
+  "source_sha256": "7e6cef59b986c2f35530d4adb77b9f42bfb0147c01eca782db74c9630ec48112",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 보고서는 인터넷 노출 자산과 내부 중요 서버를 대상으로 수행한 취약점 점검 결과와 조치 현황을 담고 있다. 위험도별 발견 건수와 조치 완료 및 예외 승인 현황을 포함한다.",
+    "evidence": [
+      {
+        "section_id": "sec-94a1652db6",
+        "quote": "인터넷 노출 자산 46대와 내부 중요 서버 128대를 대상으로 자동 점검과 수동 확인을 수행했다."
+      },
+      {
+        "section_id": "sec-44c889ecdb",
+        "quote": "위험도 | 발견 | 조치 완료 | 예외 승인 |"
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "인터넷 노출 자산 46대와 내부 중요 서버 128대를 대상으로 취약점 점검을 수행함.",
+      "evidence": [
+        {
+          "section_id": "sec-94a1652db6",
+          "quote": "인터넷 노출 자산 46대와 내부 중요 서버 128대를 대상으로 자동 점검과 수동 확인을 수행했다."
+        }
+      ]
+    },
+    {
+      "text": "위험도별로 긴급, 높음, 보통, 낮음 등급의 취약점 발견 및 조치 현황을 집계함.",
+      "evidence": [
+        {
+          "section_id": "sec-44c889ecdb",
+          "quote": "위험도 | 발견 | 조치 완료 | 예외 승인 |"
+        }
+      ]
+    },
+    {
+      "text": "높음 등급 예외 1건은 공급업체 패치 제공 전까지 네트워크 접근을 제한함.",
+      "evidence": [
+        {
+          "section_id": "sec-da6650c9fe",
+          "quote": "높음 등급 예외 1건은 공급업체 패치가 제공될 때까지 네트워크 접근을 제한했다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "취약점",
+    "조치현황",
+    "인터넷 노출 자산",
+    "내부 중요 서버",
+    "보안패치",
+    "위험도",
+    "예외 승인"
+  ],
+  "entities": [
+    {
+      "name": "취약점 및 보안패치 관리 규정",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-da6650c9fe",
+          "quote": "조치기한은 [취약점 및 보안패치 관리 규정](REG-000014.md)을 적용했다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "취약점 조치기한은 어떤 규정을 따르는가?",
+      "answer": "취약점 및 보안패치 관리 규정을 적용한다.",
+      "evidence": [
+        {
+          "section_id": "sec-da6650c9fe",
+          "quote": "조치기한은 [취약점 및 보안패치 관리 규정](REG-000014.md)을 적용했다."
+        }
+      ]
+    },
+    {
+      "question": "높음 등급의 취약점 예외 건은 어떻게 관리하는가?",
+      "answer": "공급업체 패치가 제공될 때까지 네트워크 접근을 제한한다.",
+      "evidence": [
+        {
+          "section_id": "sec-da6650c9fe",
+          "quote": "높음 등급 예외 1건은 공급업체 패치가 제공될 때까지 네트워크 접근을 제한했다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000014",
+      "relation_type": "based_on",
+      "evidence": [
+        {
+          "section_id": "sec-da6650c9fe",
+          "quote": "조치기한은 [취약점 및 보안패치 관리 규정](REG-000014.md)을 적용했다."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "wikiVersion": 1,
+  "builtAt": "2026-07-21T09:00:00.000Z",
+  "docs": [
+    {
+      "docId": "CONTRACT-2026-001",
+      "rev": 3,
+      "title": "용역 계약서",
+      "file": "docs/contract.md",
+      "sourcePath": "샘플문서-000000/계약서.hwpx",
+      "sections": ["제3조 대금의 지급", "제7조 비밀유지", "부칙"]
+    },
+    {
+      "docId": "APPLY-2026-014",
+      "rev": 2,
+      "title": "지원사업 신청서",
+      "file": "docs/application.md",
+      "sourcePath": "샘플문서-000000/신청서.hwpx",
+      "sections": ["1. 신청 개요", "2. 사업비 집행 계획"]
+    },
+    {
+      "docId": "GUIDE-2026-007",
+      "rev": 1,
+      "title": "제출 서류 안내",
+      "file": "docs/guide.md",
+      "sourcePath": "샘플문서-000000/안내문.pdf",
+      "sections": ["필수 서류", "제출 기한"]
+    }
+  ]
+}

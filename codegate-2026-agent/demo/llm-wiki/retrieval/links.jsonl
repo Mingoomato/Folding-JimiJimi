@@ -1,0 +1,3 @@
+{"schema_version":"1.0.0","source_id":"REG-000001","target_id":"MAN-000001","relation":"IMPLEMENTED_BY","status":"VERIFIED","evidence_chunk_ids":["REG-000001@1#sec-004","MAN-000001@1#check-retention"]}
+{"schema_version":"1.0.0","source_id":"MAN-000001","target_id":"REP-000001","relation":"VERIFIED_BY","status":"VERIFIED","evidence_chunk_ids":["MAN-000001@1#check-retention","REP-000001@1#audit-result"]}
+{"schema_version":"1.0.0","source_id":"REG-000002","target_id":"MAN-000002","relation":"IMPLEMENTED_BY","status":"VERIFIED","evidence_chunk_ids":["REG-000002@1#sec-007","MAN-000002@1#first-response"]}

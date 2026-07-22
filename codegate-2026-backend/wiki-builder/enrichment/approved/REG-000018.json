@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REG-000018",
+  "source_sha256": "0c30ca087a28974f86bc06b6893a56b2deacee7a553580030dea2afed63b9441",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 문서는 업무용 스마트폰과 태블릿의 보안 관리 규정으로, 화면 잠금 및 분실 신고 절차를 다룬다. 현재는 효력이 종료되어 모바일기기 보안 규정으로 대체되었다.",
+    "evidence": [
+      {
+        "section_id": "sec-665f0d0569",
+        "quote": "이 문서는 2025년 4월 30일 효력이 종료되었으며 [모바일기기 보안 규정](REG-000019.md)으로 대체되었다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "업무용으로 지급된 스마트폰과 태블릿에 적용한다.",
+      "evidence": [
+        {
+          "section_id": "sec-665f0d0569",
+          "quote": "업무용으로 지급된 스마트폰과 태블릿에 적용한다."
+        }
+      ]
+    },
+    {
+      "text": "사용자는 화면 잠금과 원격 삭제 기능을 활성화해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-861f29b696",
+          "quote": "사용자는 화면 잠금과 원격 삭제 기능을 활성화해야 한다."
+        }
+      ]
+    },
+    {
+      "text": "기기 분실 시 부서장과 정보보호 담당자에게 즉시 신고해야 한다.",
+      "evidence": [
+        {
+          "section_id": "sec-26b352b93e",
+          "quote": "기기를 분실하면 발견 즉시 부서장과 정보보호 담당자에게 알린다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "구형 모바일기기",
+    "화면 잠금",
+    "원격 삭제",
+    "분실 신고",
+    "스마트폰",
+    "태블릿"
+  ],
+  "entities": [
+    {
+      "name": "부서장",
+      "type": "role",
+      "evidence": [
+        {
+          "section_id": "sec-26b352b93e",
+          "quote": "부서장"
+        }
+      ]
+    },
+    {
+      "name": "정보보호 담당자",
+      "type": "role",
+      "evidence": [
+        {
+          "section_id": "sec-26b352b93e",
+          "quote": "정보보호 담당자"
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "기기를 분실하면 어떻게 해야 합니까?",
+      "answer": "발견 즉시 부서장과 정보보호 담당자에게 알려야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-26b352b93e",
+          "quote": "기기를 분실하면 발견 즉시 부서장과 정보보호 담당자에게 알린다."
+        }
+      ]
+    },
+    {
+      "question": "사용자가 활성화해야 하는 기능은 무엇입니까?",
+      "answer": "화면 잠금과 원격 삭제 기능을 활성화해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-861f29b696",
+          "quote": "사용자는 화면 잠금과 원격 삭제 기능을 활성화해야 한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "REG-000019",
+      "relation_type": "superseded_by",
+      "evidence": [
+        {
+          "section_id": "sec-665f0d0569",
+          "quote": "> 이 문서는 2025년 4월 30일 효력이 종료되었으며 [모바일기기 보안 규정](REG-000019.md)으로 대체되었다."
+        }
+      ]
+    }
+  ]
+}

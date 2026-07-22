@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codegate.local/schemas/source-reference.schema.json",
+  "title": "Source reference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "document_id",
+    "source_uri",
+    "source_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "kind": {"const": "source_reference"},
+    "document_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$",
+      "maxLength": 96
+    },
+    "source_uri": {"type": "string", "pattern": "^source://"},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

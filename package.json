@@ -1,0 +1,17 @@
+{
+  "name": "codegate-2026-integrated",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "dev": "node scripts/dev.mjs",
+    "check": "node scripts/check.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  }
+}

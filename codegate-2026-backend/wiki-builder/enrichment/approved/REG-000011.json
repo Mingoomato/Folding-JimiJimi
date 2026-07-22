@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REG-000011",
+  "source_sha256": "816d404417dc1e561dd82c9206e117f2b359205f83e656c4e9d1e030c373390c",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 규정은 정보시스템의 변경을 일반, 표준, 긴급 변경으로 분류하고 각 유형별 관리 절차를 정의한다. 특히 긴급 변경 시 사후 승인 및 원인 분석 절차를 명시하고 있다.",
+    "evidence": [
+      {
+        "section_id": "sec-e778a835fd",
+        "quote": "변경은 일반 변경, 표준 변경 및 긴급 변경으로 구분한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "변경 유형은 일반 변경, 표준 변경, 긴급 변경으로 구분함",
+      "evidence": [
+        {
+          "section_id": "sec-e778a835fd",
+          "quote": "변경은 일반 변경, 표준 변경 및 긴급 변경으로 구분한다."
+        }
+      ]
+    },
+    {
+      "text": "일반 변경 시 영향 분석, 시험 결과, 작업 일정, 복구 계획 및 승인 기록이 필수임",
+      "evidence": [
+        {
+          "section_id": "sec-9617cedd9e",
+          "quote": "일반 변경에는 영향 분석, 시험 결과, 작업 일정, 복구 계획 및 승인 기록이 있어야 한다."
+        }
+      ]
+    },
+    {
+      "text": "긴급 변경은 장애 확산 방지를 위해 수행하며 사후 승인 및 원인 분석을 완료해야 함",
+      "evidence": [
+        {
+          "section_id": "sec-fba6bfc3ea",
+          "quote": "작업 후 다음 영업일까지 사후 승인과 원인 분석을 완료한다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "변경관리",
+    "정보시스템",
+    "일반 변경",
+    "표준 변경",
+    "긴급 변경",
+    "영향 분석",
+    "복구 계획",
+    "사후 승인"
+  ],
+  "entities": [
+    {
+      "name": "시스템 변경 작업 매뉴얼",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-fba6bfc3ea",
+          "quote": "작업 기록 방법은 [시스템 변경 작업 매뉴얼](MAN-000007.md)을 참고한다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "변경의 유형에는 어떤 것이 있나요?",
+      "answer": "변경은 일반 변경, 표준 변경, 긴급 변경으로 구분됩니다.",
+      "evidence": [
+        {
+          "section_id": "sec-e778a835fd",
+          "quote": "변경은 일반 변경, 표준 변경 및 긴급 변경으로 구분한다."
+        }
+      ]
+    },
+    {
+      "question": "긴급 변경 시 사후 조치는 언제까지 완료해야 하나요?",
+      "answer": "작업 후 다음 영업일까지 사후 승인과 원인 분석을 완료해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-fba6bfc3ea",
+          "quote": "작업 후 다음 영업일까지 사후 승인과 원인 분석을 완료한다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "MAN-000007",
+      "relation_type": "references",
+      "evidence": [
+        {
+          "section_id": "sec-fba6bfc3ea",
+          "quote": "작업 기록 방법은 [시스템 변경 작업 매뉴얼](MAN-000007.md)을 참고한다."
+        }
+      ]
+    }
+  ]
+}

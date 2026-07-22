@@ -1,0 +1,34 @@
+/* Folding webfonts — 자체 호스팅.
+   원본 디자인 시스템은 jsDelivr CDN을 쓰지만, Folding은 오프라인에서도
+   동작해야 하므로(위키가 로컬에만 존재) 바이너리를 앱에 번들한다.
+   파일은 scripts/fetch-fonts.sh 로 받아 public/fonts/ 에 둔다. */
+
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/PretendardVariable.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2');
+}

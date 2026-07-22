@@ -1,0 +1,37 @@
+/* Folding — Radii, borders, shadows, motion  (design system 원본 그대로) */
+:root {
+  /* Corner radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;   /* inputs, small buttons */
+  --radius-lg: 14px;   /* buttons, chips */
+  --radius-xl: 18px;   /* cards */
+  --radius-2xl: 24px;  /* feature panels */
+  --radius-3xl: 32px;  /* hero / large surfaces */
+  --radius-full: 999px;
+
+  /* Border widths */
+  --border-hairline: 1px;
+  --border-thick: 1.5px;
+
+  /* Shadows — soft, cool-tinted (navy base) */
+  --shadow-xs: 0 1px 2px rgba(13,22,48,.06);
+  --shadow-sm: 0 1px 3px rgba(13,22,48,.08), 0 1px 2px rgba(13,22,48,.04);
+  --shadow-md: 0 6px 16px rgba(13,22,48,.08), 0 2px 4px rgba(13,22,48,.04);
+  --shadow-lg: 0 16px 36px rgba(13,22,48,.10), 0 4px 8px rgba(13,22,48,.05);
+  --shadow-xl: 0 28px 64px rgba(13,22,48,.14), 0 8px 16px rgba(13,22,48,.06);
+  --shadow-brand: 0 10px 26px rgba(43,93,253,.30);
+  --shadow-brand-sm: 0 4px 12px rgba(43,93,253,.22);
+  --shadow-inset: inset 0 1px 2px rgba(13,22,48,.06);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(.2,.6,.2,1);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-in-out: cubic-bezier(.65,0,.35,1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
+  /* Blur */
+  --blur-glass: saturate(180%) blur(16px);
+}

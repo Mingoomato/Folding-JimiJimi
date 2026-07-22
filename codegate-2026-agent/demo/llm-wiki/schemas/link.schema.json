@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codegate.local/schemas/link.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_id",
+    "target_id",
+    "relation",
+    "status",
+    "evidence_chunk_ids"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "source_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$",
+      "maxLength": 96
+    },
+    "target_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$",
+      "maxLength": 96
+    },
+    "relation": {"type": "string", "minLength": 1},
+    "status": {"enum": ["VERIFIED", "PROPOSED"]},
+    "evidence_chunk_ids": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

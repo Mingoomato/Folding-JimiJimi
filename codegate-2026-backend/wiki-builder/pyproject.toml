@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-wiki-builder"
+version = "0.1.0"
+description = "Deterministic Gemini-assisted wiki builder for Markdown documents"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "httpx>=0.28,<0.29",
+  "jsonschema>=4.23,<5",
+  "markdown-it-py>=3.0,<4",
+  "python-dotenv>=1.1,<2",
+  "PyYAML>=6.0,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.11,<0.12",
+]
+
+[project.scripts]
+wiki-builder = "wiki_builder.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wiki_builder"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

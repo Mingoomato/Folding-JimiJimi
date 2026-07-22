@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0.0",
+  "doc_id": "REG-000005",
+  "source_sha256": "15ad8ea7a6a7aef67d0fbfe5147269afddf3f61fa408824bbc9fb1a176dafab3",
+  "model_fingerprint": "f1c34c90254d02b7eb93f443ca61de11c97ebb3a238ed9ce16748295d007713c",
+  "prompt_version": "enrichment-v1",
+  "summary": {
+    "text": "본 규정은 업무자료의 외부 반출 시 사전 승인 절차와 개인 저장매체 사용 금지를 명시한다. 긴급 상황 시 예외적인 승인 절차와 반출 기록 관리 방법을 규정하고 있다.",
+    "evidence": [
+      {
+        "section_id": "sec-fb510efd84",
+        "quote": "업무자료의 외부 반출은 사전 승인을 받아야 한다."
+      }
+    ]
+  },
+  "key_points": [
+    {
+      "text": "업무자료 외부 반출 시 사전 승인이 필수적이다.",
+      "evidence": [
+        {
+          "section_id": "sec-fb510efd84",
+          "quote": "업무자료의 외부 반출은 사전 승인을 받아야 한다."
+        }
+      ]
+    },
+    {
+      "text": "개인 소유 저장매체에 업무자료를 저장하는 행위를 금지한다.",
+      "evidence": [
+        {
+          "section_id": "sec-fb510efd84",
+          "quote": "개인 소유 저장매체에는 업무자료를 저장하지 않는다."
+        }
+      ]
+    },
+    {
+      "text": "긴급 상황 시 구두 승인 후 사후 기록 보완이 가능하다.",
+      "evidence": [
+        {
+          "section_id": "sec-da1bed9b8a",
+          "quote": "서비스 장애 대응과 같이 사전 승인이 불가능한 긴급 상황에서는 구두 승인을 받은 후 다음 영업일까지 기록을 보완할 수 있다."
+        }
+      ]
+    }
+  ],
+  "keywords": [
+    "저장매체",
+    "자료반출",
+    "업무자료",
+    "사전 승인",
+    "개인 소유 저장매체",
+    "반출 신청",
+    "구두 승인"
+  ],
+  "entities": [
+    {
+      "name": "자료 반출 운영 매뉴얼",
+      "type": "document",
+      "evidence": [
+        {
+          "section_id": "sec-da1bed9b8a",
+          "quote": "반출 기록 방법은 [자료 반출 운영 매뉴얼](MAN-000003.md)을 따른다."
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "업무자료 반출 신청 시 포함해야 할 정보는 무엇인가요?",
+      "answer": "신청자와 소속, 반출 목적, 대상 파일과 정보등급, 수신자, 반출 및 회수 예정일, 보호조치를 포함해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-74c010a62e",
+          "quote": "반출 신청에는 다음 사항을 포함한다."
+        }
+      ]
+    },
+    {
+      "question": "긴급 상황에서 자료를 반출해야 할 경우 어떻게 해야 하나요?",
+      "answer": "구두 승인을 받은 후 다음 영업일까지 기록을 보완해야 합니다.",
+      "evidence": [
+        {
+          "section_id": "sec-da1bed9b8a",
+          "quote": "서비스 장애 대응과 같이 사전 승인이 불가능한 긴급 상황에서는 구두 승인을 받은 후 다음 영업일까지 기록을 보완할 수 있다."
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "to_doc_id": "MAN-000003",
+      "relation_type": "based_on",
+      "evidence": [
+        {
+          "section_id": "sec-da1bed9b8a",
+          "quote": "반출 기록 방법은 [자료 반출 운영 매뉴얼](MAN-000003.md)을 따른다."
+        }
+      ]
+    }
+  ]
+}

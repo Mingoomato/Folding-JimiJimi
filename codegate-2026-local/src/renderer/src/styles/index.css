@@ -1,0 +1,158 @@
+/* Folding 렌더러 — 스타일 진입점.
+ *
+ * 순서가 중요하다:
+ *   1. Folding 디자인 토큰 (원본 그대로 — 업스트림 동기화 대상)
+ *   2. Tailwind
+ *   3. @theme inline 으로 토큰 → Tailwind 유틸리티 매핑 (값 복제 없음)
+ *   4. base.css — Tailwind preflight 위에 Folding 리셋을 덮는다
+ */
+
+@import './tokens/fonts.css';
+@import './tokens/colors.css';
+@import './tokens/typography.css';
+@import './tokens/spacing.css';
+@import './tokens/effects.css';
+
+@import 'tailwindcss';
+
+/*
+ * `layer(base)` 가 반드시 필요하다.
+ *
+ * Tailwind v4 는 유틸리티를 @layer utilities 안에 넣는데, CSS 캐스케이드 규칙상
+ * **레이어에 속하지 않은 규칙이 레이어에 속한 규칙을 항상 이긴다**(우선순위 무관).
+ * 그래서 base.css 를 레이어 없이 임포트하면 `h1 { color: var(--text-strong) }` 이
+ * `text-white` 같은 유틸리티를 눌러버린다 — 로그인 화면 제목이 어두운 네이비로
+ * 나오던 원인이 이것이었다. base 레이어에 넣으면 유틸리티가 정상적으로 이긴다.
+ */
+@import './tokens/base.css' layer(base);
+
+/* ---------------------------------------------------------------------------
+ * 토큰 → Tailwind 매핑.
+ * `inline` 이므로 Tailwind가 자체 변수를 새로 만들지 않고 위 토큰을 그대로 쓴다.
+ * 즉 디자인 시스템 CSS 한 곳만 고치면 유틸리티까지 따라 바뀐다.
+ * ------------------------------------------------------------------------- */
+@theme inline {
+  /* ---- Brand ---- */
+  --color-blue-50: var(--blue-50);
+  --color-blue-100: var(--blue-100);
+  --color-blue-200: var(--blue-200);
+  --color-blue-300: var(--blue-300);
+  --color-blue-400: var(--blue-400);
+  --color-blue-500: var(--blue-500);
+  --color-blue-600: var(--blue-600);
+  --color-blue-700: var(--blue-700);
+  --color-blue-800: var(--blue-800);
+
+  /* ---- Ink ---- */
+  --color-ink-50: var(--ink-50);
+  --color-ink-100: var(--ink-100);
+  --color-ink-150: var(--ink-150);
+  --color-ink-200: var(--ink-200);
+  --color-ink-300: var(--ink-300);
+  --color-ink-400: var(--ink-400);
+  --color-ink-500: var(--ink-500);
+  --color-ink-600: var(--ink-600);
+  --color-ink-700: var(--ink-700);
+  --color-ink-800: var(--ink-800);
+  --color-ink-900: var(--ink-900);
+  --color-ink-950: var(--ink-950);
+
+  /* ---- Semantic ---- */
+  --color-green-50: var(--green-50);
+  --color-green-100: var(--green-100);
+  --color-green-500: var(--green-500);
+  --color-green-600: var(--green-600);
+  --color-amber-50: var(--amber-50);
+  --color-amber-100: var(--amber-100);
+  --color-amber-500: var(--amber-500);
+  --color-amber-600: var(--amber-600);
+  --color-red-50: var(--red-50);
+  --color-red-100: var(--red-100);
+  --color-red-500: var(--red-500);
+  --color-red-600: var(--red-600);
+
+  /* ---- Type ---- */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --text-2xs: var(--fs-2xs);
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-base: var(--fs-base);
+  --text-lg: var(--fs-lg);
+  --text-h4: var(--fs-h4);
+  --text-h3: var(--fs-h3);
+  --text-h2: var(--fs-h2);
+  --text-h1: var(--fs-h1);
+
+  --tracking-tighter: var(--ls-tighter);
+  --tracking-tight: var(--ls-tight);
+  --tracking-normal: var(--ls-normal);
+  --tracking-wide: var(--ls-wide);
+  --tracking-caps: var(--ls-caps);
+
+  --leading-tight: var(--lh-tight);
+  --leading-snug: var(--lh-snug);
+  --leading-normal: var(--lh-normal);
+  --leading-relaxed: var(--lh-relaxed);
+
+  /* ---- Radii ---- */
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-3xl: var(--radius-3xl);
+
+  /* ---- Shadows ---- */
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-brand: var(--shadow-brand);
+  --shadow-brand-sm: var(--shadow-brand-sm);
+
+  /* ---- Motion ---- */
+  --ease-standard: var(--ease-standard);
+  --ease-out: var(--ease-out);
+
+  /* ---- 앱 셸 레이아웃 ---- */
+  --spacing-pane-chatlist: var(--pane-chatlist);
+  --spacing-pane-tree: var(--pane-tree);
+  --spacing-topbar: var(--topbar-h);
+}
+
+/* ---------------------------------------------------------------------------
+ * 반복되는 Folding 패턴만 유틸리티로. 컴포넌트 스타일은 각 컴포넌트에 둔다.
+ * ------------------------------------------------------------------------- */
+@utility fold-eyebrow {
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* 스티키 크롬 전용 글래스 — 장식으로 쓰지 말 것 (디자인 시스템 규칙) */
+@utility fold-glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+}
+
+@utility fold-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+}
+
+/* 포커스 링 — 토큰 하나로 통일 */
+@utility fold-focus {
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}

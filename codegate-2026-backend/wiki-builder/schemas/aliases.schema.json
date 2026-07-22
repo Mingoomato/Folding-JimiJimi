@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/schemas/aliases.schema.json",
+  "title": "LLM Wiki Aliases",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "normalization", "entries"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "normalization": {"const": "NFC+whitespace"},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["term", "targets"],
+        "properties": {
+          "term": {"type": "string", "minLength": 1},
+          "targets": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["doc_id", "kind"],
+              "properties": {
+                "doc_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$", "maxLength": 96},
+                "kind": {"const": "declared"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
