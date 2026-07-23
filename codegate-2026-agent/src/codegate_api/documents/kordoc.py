@@ -7,6 +7,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import time
 import uuid
 from contextlib import suppress
 from pathlib import Path
@@ -31,6 +32,7 @@ class KordocWorkerClient:
         self._process: subprocess.Popen[str] | None = None
         self._responses: queue.Queue[dict[str, Any]] = queue.Queue()
         self._lock = threading.Lock()
+        self._stderr_tail = ""
 
     def close(self) -> None:
         with self._lock:
@@ -54,13 +56,23 @@ class KordocWorkerClient:
                 raise WriterError(
                     "writer_crash", "Kordoc worker crashed", retryable=True
                 ) from error
-            try:
-                response = self._responses.get(timeout=self._timeout_seconds)
-            except queue.Empty as error:
-                self._terminate(process)
-                raise WriterError(
-                    "writer_timeout", "Kordoc worker timed out", retryable=True
-                ) from error
+            deadline = time.monotonic() + self._timeout_seconds
+            while True:
+                if process.poll() is not None:
+                    self._process = None
+                    detail = self._stderr_tail.strip()[-1000:] or "Kordoc worker crashed"
+                    raise WriterError("writer_crash", detail, retryable=True)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self._terminate(process)
+                    raise WriterError(
+                        "writer_timeout", "Kordoc worker timed out", retryable=True
+                    )
+                try:
+                    response = self._responses.get(timeout=min(remaining, 0.1))
+                    break
+                except queue.Empty:
+                    continue
             if response.get("id") != request_id:
                 self._terminate(process)
                 raise WriterError(
@@ -93,6 +105,7 @@ class KordocWorkerClient:
             if os.name == "nt"
             else 0
         )
+        self._stderr_tail = ""
         process = subprocess.Popen(
             [
                 str(self._node_bin),
@@ -102,7 +115,7 @@ class KordocWorkerClient:
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             bufsize=1,
@@ -110,9 +123,20 @@ class KordocWorkerClient:
             start_new_session=os.name != "nt",
         )
         self._process = process
+        stderr_thread = threading.Thread(
+            target=self._read_stderr,
+            args=(process,),
+            daemon=True,
+        )
+        stderr_thread.start()
         thread = threading.Thread(target=self._read_responses, args=(process,), daemon=True)
         thread.start()
         return process
+
+    def _read_stderr(self, process: subprocess.Popen[str]) -> None:
+        assert process.stderr is not None
+        for chunk in process.stderr:
+            self._stderr_tail = (self._stderr_tail + chunk)[-4000:]
 
     def _read_responses(self, process: subprocess.Popen[str]) -> None:
         assert process.stdout is not None

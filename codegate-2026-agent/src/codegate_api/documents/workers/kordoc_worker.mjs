@@ -1,16 +1,21 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
+import { pathToFileURL } from 'node:url';
+import { fillDailyWorkTemplate } from './kordoc_template_layout.mjs';
 
 const [stagingArg, kordocArg] = process.argv.slice(2);
 if (!stagingArg || !kordocArg) throw new Error('staging and Kordoc roots are required');
 const stagingRoot = await realpath(stagingArg);
 const kordocRoot = await realpath(kordocArg);
 const requireFromKordoc = createRequire(path.join(kordocRoot, 'package.json'));
-const kordoc = await import(requireFromKordoc.resolve('kordoc'));
-const packageJson = JSON.parse(await readFile(requireFromKordoc.resolve('kordoc/package.json'), 'utf8'));
+const packagePath = path.join(kordocRoot, 'node_modules', 'kordoc', 'package.json');
+const kordocEntry = requireFromKordoc.resolve('kordoc');
+const requireFromPackage = createRequire(kordocEntry);
+const kordoc = await import(pathToFileURL(kordocEntry).href);
+const packageJson = JSON.parse(await readFile(packagePath, 'utf8'));
 if (packageJson.version !== '4.2.5') throw new Error('Kordoc 4.2.5 is required');
 
 function safePath(relative) {
@@ -44,7 +49,7 @@ async function outputPath(relative) {
 async function runCli(args) {
   const binValue = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin?.kordoc;
   if (!binValue) throw new Error('Kordoc CLI entry is unavailable');
-  const binPath = path.resolve(path.dirname(requireFromKordoc.resolve('kordoc/package.json')), binValue);
+  const binPath = path.resolve(path.dirname(packagePath), binValue);
   return await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [binPath, ...args], {
       cwd: stagingRoot,
@@ -79,6 +84,28 @@ async function handle(request) {
       await writeFile(await outputPath(request.output), Buffer.from(content));
       return { output: request.output };
     }
+    case 'deriveHwpTemplate': {
+      const parsed = await parseDocument(request.input);
+      if (typeof parsed.markdown !== 'string') throw new Error('Kordoc HWP parse returned no Markdown');
+      const before = await kordoc.markdownToHwpx(parsed.markdown);
+      await writeFile(await outputPath(request.beforeOutput), Buffer.from(before));
+      const filled = fillDailyWorkTemplate(parsed.markdown, request.markdown);
+      const profile = await kordoc.hwpxToProfile(Buffer.from(before));
+      const proposed = await kordoc.markdownToHwpx(filled.markdown, { profile });
+      await writeFile(await outputPath(request.output), Buffer.from(proposed));
+      const verified = await parseDocument(request.output);
+      for (const column of filled.verifiedLines ?? []) {
+        if (!verified.markdown.includes(column)) {
+          throw new Error('Kordoc template derivation parse-after-write verification failed');
+        }
+      }
+      return {
+        output: request.output,
+        beforeOutput: request.beforeOutput,
+        inserted: filled.inserted,
+        layout: { ...filled.layout, profileApplied: true },
+      };
+    }
     case 'patchHwpx': {
       const result = await parseDocument(request.input);
       let markdown = result.markdown;
@@ -99,12 +126,9 @@ async function handle(request) {
       const resultPath = await outputPath(request.output);
       await writeFile(editedPath, markdown, 'utf8');
       const cli = await runCli([
-        'patch', inputPath, '--md', editedPath, '--out', resultPath, '--json',
+        'patch', inputPath, editedPath, '--output', resultPath, '--silent',
       ]);
-      let report = {};
-      try { report = JSON.parse(cli.stdout); } catch { report = {}; }
-      const skipped = report.skipped ?? report.unapplied ?? [];
-      if (cli.code !== 0 || skipped.length || Number(report.applied ?? 0) < (request.operations ?? []).length) {
+      if (cli.code !== 0) {
         throw new Error(`Kordoc patch incomplete: ${cli.stderr || cli.stdout}`);
       }
       const verified = await parseDocument(request.output);
@@ -116,15 +140,20 @@ async function handle(request) {
           throw new Error('Kordoc parse-after-write verification failed');
         }
       }
-      return { output: request.output, applied: report.applied, skipped: [] };
+      return { output: request.output, applied: (request.operations ?? []).length, skipped: [] };
     }
     case 'render_document': {
       const inputPath = await existingPath(request.input);
       const outputDir = await existingPath(request.outputDir);
-      const cli = await runCli(['render', inputPath, '--reflow', '--out', outputDir]);
+      const svgPath = path.join(outputDir, 'document.svg');
+      const pngPath = path.join(outputDir, 'page-1.png');
+      const cli = await runCli([
+        'render', inputPath, '--reflow', '--output', svgPath, '--silent',
+      ]);
       if (cli.code !== 0) throw new Error(`Kordoc render failed: ${cli.stderr || cli.stdout}`);
-      const names = (await readdir(outputDir)).filter((name) => name.endsWith('.png')).sort();
-      return { pages: names.map((name) => path.join(request.outputDir, name).replaceAll('\\', '/')) };
+      const sharpModule = await import(pathToFileURL(requireFromPackage.resolve('sharp')).href);
+      await sharpModule.default(svgPath, { density: 120 }).png().toFile(pngPath);
+      return { pages: [path.join(request.outputDir, 'page-1.png').replaceAll('\\', '/')] };
     }
     default:
       throw new Error('unknown worker command');

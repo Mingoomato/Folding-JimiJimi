@@ -169,6 +169,53 @@ class StateStore:
                 (now, conversation_key),
             )
 
+    def recent_messages(
+        self,
+        *,
+        conversation_id: str,
+        tenant_id: str,
+        subject_id: str,
+        limit: int = 20,
+    ) -> list[dict[str, str]]:
+        conversation_key = _conversation_key(tenant_id, subject_id, conversation_id)
+        bounded_limit = max(1, min(limit, 100))
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT role, content FROM messages
+                WHERE conversation_key = ?
+                  AND role IN ('user', 'assistant')
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT ?
+                """,
+                (conversation_key, bounded_limit),
+            ).fetchall()
+        return [
+            {"role": str(row["role"]), "content": str(row["content"])} for row in reversed(rows)
+        ]
+
+    def delete_conversation(
+        self,
+        *,
+        conversation_id: str,
+        tenant_id: str,
+        subject_id: str,
+    ) -> None:
+        conversation_key = _conversation_key(tenant_id, subject_id, conversation_id)
+        with self._transaction() as connection:
+            connection.execute(
+                "DELETE FROM agent_runs WHERE conversation_key = ?",
+                (conversation_key,),
+            )
+            connection.execute(
+                "DELETE FROM messages WHERE conversation_key = ?",
+                (conversation_key,),
+            )
+            connection.execute(
+                "DELETE FROM conversations WHERE conversation_key = ?",
+                (conversation_key,),
+            )
+
     def record_agent_run(
         self,
         *,

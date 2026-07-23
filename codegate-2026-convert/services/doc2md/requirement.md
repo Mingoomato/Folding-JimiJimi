@@ -8,11 +8,8 @@ NVIDIA GeForce MX450이다.
 ```bash
 cd services/doc2md
 
-# CPU만 (설치 간단, OCR이 약 10배 느림)
-pip install -e .
-
-# GPU (권장) — PaddlePaddle 전용 인덱스가 필요하다
-pip install -e ".[gpu]" --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+# GPU 필수 — PaddlePaddle 전용 인덱스가 필요하다
+pip install -e . --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
 
 # 개발/테스트
 pip install -e ".[test]"
@@ -21,7 +18,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8931
 curl 'http://127.0.0.1:8931/health?deep=1'   # 실제 변환까지 확인
 ```
 
-`uv`를 쓰면 인덱스가 `pyproject.toml`에 선언돼 있어 `uv sync --extra gpu`로 끝난다.
+`uv`를 쓰면 인덱스가 `pyproject.toml`에 선언돼 있어 `uv sync`로 끝난다.
 
 ## 1. 런타임
 
@@ -54,7 +51,8 @@ curl 'http://127.0.0.1:8931/health?deep=1'   # 실제 변환까지 확인
 | `pymupdf` | 1.28.0 | PDF 페이지 분할, 페이지 렌더, 내장 이미지 추출 |
 | `paddleocr` | 3.3.0 | OCR 파이프라인 |
 | `paddlex[ocr]` | 3.3.13 | 레이아웃·표 구조 모델. **없으면 구성 시점에 DependencyError** |
-| `paddlepaddle` | 3.2.0 | 추론 엔진 (CPU) |
+| `paddlepaddle-gpu` | 3.2 이상 | CUDA 추론 엔진 |
+| `nvidia-cudnn-cu12` | 9.x | Windows cuDNN·cuBLAS DLL |
 | `pillow` / `numpy` | 12.3.0 / 2.5.1 | 이미지 디코딩 (메모리 내, 디스크 기록 없음) |
 | `pyyaml` | 6.0.2 | 프론트매터 |
 
@@ -62,23 +60,23 @@ curl 'http://127.0.0.1:8931/health?deep=1'   # 실제 변환까지 확인
 
 | extra | 패키지 | 언제 |
 |---|---|---|
-| `gpu` | `paddlepaddle-gpu` | GPU를 쓸 때 (§3) |
+| `gpu` | 없음 | 이전 설치 명령 호환용 빈 extra |
 | `uri` | `fsspec`, `s3fs` | `/v2/convert`에 `kind:"uri"`(s3/gs/azure)로 넣을 때만 |
 | `test` | `pytest` | 테스트 실행 |
 | `agent` | `claude-agent-sdk`, `httpx` | Agent 툴 예제 |
 
 ## 3. GPU
 
-**설치만 하면 된다.** 서비스가 기동 시 CUDA를 실연산으로 확인하고 되면 GPU, 안 되면
-CPU로 자동 폴백한다. 코드 변경이나 환경변수 설정이 필요 없다.
+서비스가 CUDA를 실연산으로 확인하고 사용 가능한 NVIDIA GPU를 순서대로 찾는다. GPU를
+사용할 수 없으면 OCR을 중단하며 CPU로 자동 폴백하지 않는다.
 
 ```bash
-pip install -e ".[gpu]" --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+pip install -e . --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
 ```
 
-**PyPI의 `paddlepaddle-gpu`를 쓰면 안 된다.** 그 빌드는 CUDA Toolkit이 시스템에 따로
-설치돼 있어야 하고, 헤더만 있고 `bin`이 없는 설치본에서는 `cublas64_12.dll`을 못 찾아
-실패한다. PaddlePaddle 공식 인덱스의 wheel은 **CUDA 런타임을 번들**하고 있어 이 문제가 없다.
+`paddlepaddle-gpu`는 PaddlePaddle 공식 인덱스에서 설치한다. Windows에서 필요한
+`cudnn64_9.dll`과 cuBLAS DLL은 `nvidia-cudnn-cu12` 및 전이 의존성이 제공하며, doc2md가
+해당 `bin` 디렉터리를 프로세스 DLL 검색 경로에 등록한다.
 
 검증 환경:
 
@@ -90,7 +88,7 @@ GPU: NVIDIA GeForce MX450
 
 - **NVIDIA + CUDA만 된다.** Intel/AMD 내장 GPU는 이 빌드에서 쓸 수 없다.
 - cuDNN 버전이 wheel과 다르면 경고가 뜨지만(예: 빌드 9.9 vs 설치 9.5) 동작에는 문제없었다.
-- `DOC2MD_OCR_DEVICE=cpu`로 강제할 수 있다.
+- `DOC2MD_OCR_DEVICE=gpu:N`으로 특정 GPU를 지정할 수 있고 `cpu` 값은 거부된다.
 
 ## 4. OCR 모델 — 설치 대상이 아니라 **자동 다운로드**
 

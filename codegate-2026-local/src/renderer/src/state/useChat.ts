@@ -148,6 +148,26 @@ export function useChat() {
     setMessages([]);
   }, []);
 
+  const deleteConversation = useCallback(async (conversationId: string) => {
+    await window.codegate.chat.delete(conversationId);
+
+    let nextConversations = await window.codegate.chat.list();
+    if (nextConversations.length === 0) {
+      const created = await window.codegate.chat.create();
+      nextConversations = [created];
+    }
+
+    setConversations(nextConversations);
+    if (activeIdRef.current === conversationId) {
+      const nextId = nextConversations[0].id;
+      activeIdRef.current = nextId;
+      setActiveId(nextId);
+      setMessages([]);
+      setStreaming(false);
+      setAuthError(null);
+    }
+  }, []);
+
   return {
     conversations,
     activeId,
@@ -159,5 +179,6 @@ export function useChat() {
     send,
     abort,
     createConversation,
+    deleteConversation,
   };
 }

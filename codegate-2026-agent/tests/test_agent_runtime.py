@@ -307,7 +307,10 @@ def test_claude_gateway_uses_server_owned_session_and_structured_output(
             "evidence_scope": "current_turn_only",
             "selected_document_id": "REG-000001",
         },
-        "untrusted_input": {"user_message": '"1년"을 "3년"으로 변경'},
+        "untrusted_input": {
+            "conversation_history": [],
+            "user_message": '"1년"을 "3년"으로 변경',
+        },
     }
 
 

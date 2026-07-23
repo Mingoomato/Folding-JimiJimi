@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   safeFileName,
   titleFromMarkdown,
+  titleFromUserQuery,
   uniquePath,
   writeHwpx,
 } from '@main/kordoc/generate';
@@ -42,6 +43,26 @@ describe('titleFromMarkdown', () => {
 
   it('uses the fallback for empty Markdown', () => {
     expect(titleFromMarkdown('   \n\n')).toBe('문서');
+  });
+});
+
+describe('titleFromUserQuery', () => {
+  it('uses an explicit file name request', () => {
+    expect(titleFromUserQuery('파일 이름은 "7월 업무 보고서"로 저장해줘', '# 다른 제목'))
+      .toBe('7월 업무 보고서');
+  });
+
+  it('derives a safe suggested name from the request instead of the answer heading', () => {
+    expect(
+      titleFromUserQuery(
+        '일일업무 양식대로 업무 내용 모두 정리해서 보고서 작성해줘',
+        '# 업무 보고서',
+      ),
+    ).toBe('일일업무 보고서');
+  });
+
+  it('falls back to the Markdown title when the query is absent', () => {
+    expect(titleFromUserQuery(undefined, '# 업무 보고서')).toBe('업무 보고서');
   });
 });
 

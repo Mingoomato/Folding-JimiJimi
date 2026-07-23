@@ -1,6 +1,6 @@
 [project]
 name = "doc2md"
-version = "0.2.0"
+version = "0.2.1"
 description = "Native-Python document-to-markdown conversion API (markitdown + pyhwp2md)"
 requires-python = ">=3.11"
 dependencies = [
@@ -18,7 +18,12 @@ dependencies = [
     # Pillow/numpy decode image bytes in memory so no image is written to disk.
     "paddleocr>=3.3",
     "paddlex[ocr]>=3.3",
-    "paddlepaddle>=3.2",  # CPU build; install the `gpu` extra to override
+    # Folding OCR is GPU-only. Making the CUDA wheel a base dependency prevents
+    # a normal setup from silently creating a CPU-only runtime.
+    "paddlepaddle-gpu>=3.2",
+    # Paddle's Windows wheel does not bundle cuDNN. The NVIDIA package also
+    # supplies its matching cuBLAS/NVRTC runtime dependencies.
+    "nvidia-cudnn-cu12>=9,<10; sys_platform == 'win32'",
     "pillow>=10.0",
     "numpy>=1.26",
     # Scanned PDF page rendering
@@ -40,20 +45,9 @@ uri = [
 test = [
     "pytest>=8.0",
 ]
-# OCR runs ~10x faster on a GPU. Paddle reaches NVIDIA GPUs through CUDA only,
-# and the CUDA-enabled wheel lives on PaddlePaddle's own index rather than PyPI
-# — the PyPI `paddlepaddle-gpu` expects a separately installed CUDA Toolkit and
-# fails with a missing cublas64_12.dll without one.
-#
-#   uv sync --extra gpu
-#   # or with pip:
-#   pip install -e ".[gpu]" --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
-#
-# Installing it is all that is required: the service probes CUDA at startup and
-# uses the GPU automatically, falling back to CPU if anything is missing.
-gpu = [
-    "paddlepaddle-gpu>=3.2",
-]
+# Retained as an empty compatibility extra for existing setup commands. The GPU
+# wheel is now mandatory and is installed by a normal `uv sync`.
+gpu = []
 
 # uv resolves paddlepaddle-gpu from PaddlePaddle's index automatically; the
 # index is `explicit` so nothing else is pulled from it.

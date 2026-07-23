@@ -72,7 +72,31 @@ check(
 check('Electron 설치', existsSync(path.join(localDir, 'node_modules')), localDir);
 check('Agent 설치', existsSync(venvExecutable(agentDir, 'codegate-local')), agentDir);
 check('Cloud API 설치', existsSync(venvExecutable(cloudApiDir, 'codegate-cloud-api')), cloudApiDir);
-check('doc2md 설치', existsSync(venvExecutable(convertDir, 'python')), convertDir);
+const doc2mdPython = venvExecutable(convertDir, 'python');
+const doc2mdInstalled = existsSync(doc2mdPython);
+check('doc2md 설치', doc2mdInstalled, convertDir);
+if (doc2mdInstalled) {
+  const gpuProbe = spawnSync(
+    doc2mdPython,
+    [
+      '-c',
+      [
+        'from app import ocr',
+        'device = ocr._pick_device()',
+        'import paddle',
+        "print(f'{device} {paddle.device.cuda.get_device_name(int(device.split(\":\")[1]))}')",
+      ].join('; '),
+    ],
+    { encoding: 'utf8', cwd: convertDir },
+  );
+  check(
+    'OCR GPU',
+    gpuProbe.status === 0,
+    gpuProbe.status === 0
+      ? gpuProbe.stdout.trim()
+      : (gpuProbe.stderr || gpuProbe.stdout || 'GPU probe failed').trim(),
+  );
+}
 
 for (const item of checks) {
   console.log(`${item.ok ? '✓' : '✗'} ${item.label}: ${item.detail}`);

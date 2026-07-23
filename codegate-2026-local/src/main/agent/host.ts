@@ -28,6 +28,7 @@ export interface ChatServiceOptions {
   /** 401/402 를 세션에 반영하기 위한 훅 */
   onAuthError?: (error: AuthError) => void | Promise<void>;
   rejectApprovals?: () => void;
+  deleteRemoteConversation?: (conversationId: string) => Promise<void>;
 }
 
 /** DB 쓰기 폭주를 막기 위한 부분 저장 간격. */
@@ -58,6 +59,13 @@ export class ChatService {
 
   messages(conversationId: string): ChatMessage[] {
     return this.options.store.listMessages(conversationId);
+  }
+
+  async delete(conversationId: string): Promise<void> {
+    if (!this.options.store.getConversation(conversationId)) return;
+    this.abort(conversationId);
+    await this.options.deleteRemoteConversation?.(conversationId);
+    this.options.store.deleteConversation(conversationId);
   }
 
   /** 전송만 하고 즉시 반환한다 — 응답은 `IPC_EVENTS.agentEvent` 로 스트리밍된다. */

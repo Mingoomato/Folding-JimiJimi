@@ -28,6 +28,10 @@ def model_fingerprint(config: WikiConfig) -> str:
     )
     material = {
         "provider": {key: config.provider[key] for key in provider_keys},
+        "enrichment_input": {
+            "max_input_chars": config.enrichment["max_input_chars"],
+            "max_input_sections": config.enrichment["max_input_sections"],
+        },
         "prompt_version": config.prompt_version,
         "prompt_sha256": prompt_sha256(config),
         "enrichment_schema_sha256": hashlib.sha256(

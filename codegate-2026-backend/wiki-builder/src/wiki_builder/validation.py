@@ -7,7 +7,7 @@ from typing import Any
 
 from wiki_builder.builder import prepare_build_data, render_to_temporary
 from wiki_builder.config import WikiConfig, WikiScope, default_scope, scoped_config
-from wiki_builder.corpus import extract_links
+from wiki_builder.corpus import discover_links
 from wiki_builder.enrichment import validate_grounding
 from wiki_builder.errors import ValidationError
 from wiki_builder.io_utils import GENERATOR_MARKER
@@ -111,7 +111,7 @@ def validate_wiki(
         raise ValidationError("현재 입력으로 다시 계산한 데이터와 불일치: " + ", ".join(changed))
     documents = load_documents(active_config)
     document_by_id = {document.doc_id: document for document in documents}
-    explicit_links = extract_links(documents)
+    explicit_links = discover_links(active_config, documents)
     for record in enrichments:
         doc_id = record["doc_id"]
         validate_grounding(

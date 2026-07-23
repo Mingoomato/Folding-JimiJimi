@@ -141,10 +141,10 @@ CEO · CTO
 - 구조 파싱은 PaddleOCR 기본(큰) 레이아웃 모델을 그대로 쓴다. 경량 `PP-DocLayout-S`로 바꿨더니
   **표를 이미지로 오분류**해서 표 복원이 무력화됐다. 속도는 레이아웃 모델을 약화시켜서가 아니라
   *구조 파싱을 적게 돌려서* 얻어야 한다.
-- **GPU를 자동으로 쓴다.** CUDA가 실제로 동작하는지 실연산으로 확인한 뒤 사용하고, 실패하면
-  (VRAM 부족 등) CPU로 자동 폴백한다. `paddlepaddle-gpu`는 CUDA 런타임이 번들된
-  PaddlePaddle 공식 인덱스에서 설치해야 한다 — PyPI 빌드는 CUDA Toolkit이 따로 있어야 하고,
-  `bin`이 없는 헤더용 CUDA 설치본만 있으면 `cublas64_12.dll`을 못 찾아 실패한다.
+- **GPU만 사용한다.** CUDA가 실제로 동작하는지 실연산으로 확인하고, 여러 GPU가 있으면
+  사용 가능한 장치를 순서대로 찾는다. GPU 초기화가 실패해도 CPU로 폴백하지 않는다.
+  `paddlepaddle-gpu`는 PaddlePaddle 공식 인덱스에서, cuDNN·cuBLAS는 NVIDIA Python
+  패키지에서 설치하며 Windows DLL 경로는 서비스가 시작할 때 등록한다.
 - 표 출력은 HTML이라 **마크다운 파이프 표로 변환**한다. 단 `rowspan`/`colspan` 병합셀 표는
   마크다운으로 표현하면 데이터가 어긋나므로 **HTML 그대로 보존**한다.
 - 아이콘(면적 20,000px² 미만)은 건너뛰고, 큰 이미지는 긴 변 1,200px로 줄여서 넣는다.
@@ -350,8 +350,7 @@ Windows 콘솔은 기본 코드페이지가 cp949라, 아무 조치 없이 print
 ```bash
 cd services/doc2md
 
-uv sync                  # CPU (기본)
-uv sync --extra gpu      # GPU (NVIDIA + CUDA). OCR이 약 10배 빨라진다
+uv sync                  # GPU (NVIDIA + CUDA) 필수
 
 uv run uvicorn app.main:app --reload --port 8000
 ```
@@ -359,24 +358,21 @@ uv run uvicorn app.main:app --reload --port 8000
 pip를 쓴다면:
 
 ```bash
-pip install -e .                                    # CPU
-pip install -e ".[gpu]" --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+pip install -e . --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
 ```
 
-**GPU는 설치만 하면 끝이다.** 서비스가 기동 시 CUDA가 실제로 동작하는지 확인해서 자동으로
-쓰고, 없거나 실패하면 CPU로 폴백한다. 코드나 설정을 바꿀 필요가 없다. 로그로 확인할 수 있다:
+서비스가 CUDA 장치를 실연산으로 확인해 사용하며, 없거나 실패하면 OCR을 명시적으로 사용할 수 없는
+상태로 둔다. CPU로 조용히 폴백하지 않는다. 로그로 확인할 수 있다:
 
 ```
-doc2md.ocr INFO OCR using GPU: NVIDIA GeForce MX450
-doc2md.ocr INFO OCR pipeline (lang=ko, mode=fast, device=gpu) ready
+doc2md.ocr INFO OCR using GPU 0: NVIDIA GeForce MX450
+doc2md.ocr INFO OCR pipeline (lang=ko, mode=fast, device=gpu:0) ready
 ```
 
-`DOC2MD_OCR_DEVICE=cpu`로 강제할 수도 있다.
+`DOC2MD_OCR_DEVICE=gpu:N`으로 특정 GPU를 지정할 수 있다. `cpu` 값은 거부된다.
 
-> GPU 휠은 PyPI가 아니라 PaddlePaddle 공식 인덱스에 있다(CUDA 런타임이 번들돼 있음).
-> PyPI의 `paddlepaddle-gpu`는 CUDA Toolkit이 따로 설치돼 있어야 하고, `bin` 없이 헤더만 있는
-> CUDA 설치본이면 `cublas64_12.dll`을 못 찾아 실패한다. uv는 `[tool.uv.sources]` 설정 덕에
-> 이 인덱스를 알아서 쓴다.
+> GPU 휠은 PaddlePaddle 공식 인덱스에서 설치하고, 누락된 cuDNN·cuBLAS DLL은
+> `nvidia-cudnn-cu12` 의존성이 제공한다. uv는 `[tool.uv.sources]` 설정과 lockfile을 사용한다.
 
 PPTX는 Windows나 PowerPoint 없이 markitdown으로 텍스트를 읽고 내장 이미지만 OCR한다. PDF
 페이지 렌더링은 PyMuPDF를 사용한다.

@@ -534,16 +534,26 @@ class DocumentStateStore:
             )
             return execution_id
 
-    def pending_events(self, *, limit: int = 10) -> list[PendingDocumentEvent]:
+    def pending_events(
+        self,
+        *,
+        limit: int = 10,
+        max_attempts: int | None = None,
+    ) -> list[PendingDocumentEvent]:
         with self._connect() as connection:
+            attempt_clause = "" if max_attempts is None else "AND o.attempts <= ?"
+            parameters: tuple[int, ...] = (
+                (limit,) if max_attempts is None else (max_attempts, limit)
+            )
             rows = connection.execute(
-                """
+                f"""
                 SELECT o.id, o.execution_id, o.payload_json, o.attempts
                 FROM document_outbox_v2 o
                 WHERE o.status IN ('pending', 'failed')
+                {attempt_clause}
                 ORDER BY o.created_at LIMIT ?
                 """,
-                (limit,),
+                parameters,
             ).fetchall()
             return [
                 PendingDocumentEvent(
@@ -554,6 +564,37 @@ class DocumentStateStore:
                 )
                 for row in rows
             ]
+
+    def recover_interrupted_events(self) -> int:
+        """Return process-owned outbox rows to the retryable queue after a restart."""
+        now = _now()
+        message = "document sync was interrupted by a process restart"
+        with self._transaction() as connection:
+            rows = connection.execute(
+                "SELECT id FROM document_outbox_v2 WHERE status = 'processing'"
+            ).fetchall()
+            if not rows:
+                return 0
+            connection.execute(
+                """
+                UPDATE document_executions_v2
+                SET status = 'sync_failed', error_code = 'sync_interrupted',
+                    error_message = ?, error_retryable = 1, updated_at = ?
+                WHERE status = 'syncing' AND event_id IN (
+                    SELECT id FROM document_outbox_v2 WHERE status = 'processing'
+                )
+                """,
+                (message, now),
+            )
+            connection.execute(
+                """
+                UPDATE document_outbox_v2
+                SET status = 'failed', last_error = ?, updated_at = ?
+                WHERE status = 'processing'
+                """,
+                (message, now),
+            )
+            return len(rows)
 
     def claim_event(self, event_id: str) -> bool:
         with self._transaction() as connection:
@@ -644,7 +685,11 @@ class DocumentStateStore:
             if row["status"] != "sync_failed" or not row["error_retryable"]:
                 raise DocumentStateError("execution_state_conflict", "sync is not retryable")
             connection.execute(
-                "UPDATE document_outbox_v2 SET status = 'pending', updated_at = ? WHERE id = ?",
+                """
+                UPDATE document_outbox_v2
+                SET status = 'pending', attempts = 0, last_error = NULL, updated_at = ?
+                WHERE id = ?
+                """,
                 (_now(), row["event_id"]),
             )
             connection.execute(

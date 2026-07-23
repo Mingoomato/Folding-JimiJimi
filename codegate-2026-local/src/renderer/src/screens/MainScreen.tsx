@@ -61,6 +61,7 @@ export function MainScreen({
           activeId={chat.activeId}
           onSelect={chat.setActiveId}
           onCreate={chat.createConversation}
+          onDelete={chat.deleteConversation}
           session={session}
           onOpenSettings={onOpenSettings}
         />

@@ -658,6 +658,7 @@ class DocumentService:
                     source=snapshot.content,
                     payload=request.payload,
                 )
+                base_content = proposed.preview_before
             else:
                 proposed = await asyncio.to_thread(
                     self._writers.create,

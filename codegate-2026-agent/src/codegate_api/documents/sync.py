@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any, Protocol
 
-from codegate_api.documents.store import DocumentStateStore
+from codegate_api.documents.store import DocumentStateStore, PendingDocumentEvent
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,11 @@ class DocumentSyncWorker:
         if self._task is not None:
             return
         self._stopping = False
+        recovered = self._state.recover_interrupted_events()
+        if recovered:
+            logger.warning("recovered %d interrupted document sync event(s)", recovered)
         self._task = asyncio.create_task(self._run(), name="codegate-document-sync-v2")
-        if self._state.pending_events(limit=1):
+        if self._pending_events(limit=1):
             self.notify()
 
     def notify(self) -> None:
@@ -53,7 +56,7 @@ class DocumentSyncWorker:
             self._wake.clear()
             if self._stopping:
                 return
-            for event in self._state.pending_events():
+            for event in self._pending_events():
                 if self._stopping:
                     return
                 if not self._state.claim_event(event.event_id):
@@ -78,5 +81,11 @@ class DocumentSyncWorker:
                         event.event_id,
                         graph_version_after=graph_version,
                     )
-            if self._state.pending_events(limit=1) and not self._stopping:
+            if self._pending_events(limit=1) and not self._stopping:
                 self._wake.set()
+
+    def _pending_events(self, *, limit: int = 10) -> list[PendingDocumentEvent]:
+        return self._state.pending_events(
+            limit=limit,
+            max_attempts=len(self._retry_delays),
+        )

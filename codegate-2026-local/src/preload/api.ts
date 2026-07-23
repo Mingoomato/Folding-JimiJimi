@@ -47,6 +47,7 @@ export interface CodegateApi {
   chat: {
     list(): Promise<Conversation[]>;
     create(): Promise<Conversation>;
+    delete(conversationId: string): Promise<void>;
     messages(conversationId: string): Promise<ChatMessage[]>;
     send(conversationId: string, text: string): Promise<{ messageId: string }>;
     abort(conversationId: string): Promise<void>;
@@ -66,7 +67,11 @@ export interface CodegateApi {
   };
   document: {
     /** 답변을 한글 문서(HWPX)로 저장. 취소하면 null, 저장하면 그 경로. */
-    saveHwpx(markdown: string): Promise<string | null>;
+    saveHwpx(
+      markdown: string,
+      templateSourcePath?: string,
+      userQuery?: string,
+    ): Promise<string | null>;
     /** 한글 양식을 복사해 채운 사본을 만든다. 원본 양식은 건드리지 않는다. */
     fillTemplate(markdown: string): Promise<string | null>;
   };

@@ -68,6 +68,8 @@ const api: CodegateApi = {
   chat: {
     list: (): Promise<Conversation[]> => ipcRenderer.invoke(IPC.chatList),
     create: (): Promise<Conversation> => ipcRenderer.invoke(IPC.chatCreate),
+    delete: (conversationId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.chatDelete, conversationId),
     messages: (conversationId: string): Promise<ChatMessage[]> =>
       ipcRenderer.invoke(IPC.chatMessages, conversationId),
     /** 전송만 하고 즉시 반환한다. 응답은 onAgentEvent 로 스트리밍된다. */
@@ -101,8 +103,12 @@ const api: CodegateApi = {
 
   document: {
     /** 답변을 한글 문서(HWPX)로 저장. 취소하면 null, 저장하면 그 경로. */
-    saveHwpx: (markdown: string): Promise<string | null> =>
-      ipcRenderer.invoke(IPC.documentSaveHwpx, markdown),
+    saveHwpx: (
+      markdown: string,
+      templateSourcePath?: string,
+      userQuery?: string,
+    ): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.documentSaveHwpx, markdown, templateSourcePath, userQuery),
     /** 한글 양식을 복사해 채운 사본을 만든다. 원본 양식은 건드리지 않는다. */
     fillTemplate: (markdown: string): Promise<string | null> =>
       ipcRenderer.invoke(IPC.documentFillTemplate, markdown),

@@ -61,6 +61,7 @@ const { cloudEnv, desktopEnv } = buildRuntimeEnvironments(process.env, {
   sidecarBin,
   backendDir,
   localDir,
+  nodeBin: process.execPath,
 });
 
 const children = [];

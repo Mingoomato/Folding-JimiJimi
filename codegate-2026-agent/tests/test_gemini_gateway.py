@@ -108,12 +108,46 @@ def test_gemini_locate_uses_header_key_bounded_evidence_and_structured_json(
     assert request.url.path.endswith("/gemini-2.5-flash-lite:generateContent")
     body = captured["body"]
     assert body["generationConfig"]["thinkingConfig"] == {"thinkingBudget": 0}
+    assert body["generationConfig"]["maxOutputTokens"] == 1_024
     assert body["generationConfig"]["responseMimeType"] == "application/json"
     prompt = json.loads(body["contents"][0]["parts"][0]["text"])
     evidence = prompt["untrusted_input"]["evidence"]
     assert 1 <= len(evidence) <= 3
     assert all(len(item["quote"]) <= 1_800 for item in evidence)
     assert all(item["document_id"] != "REP-000001" for item in evidence)
+
+
+def test_gemini_report_draft_removes_task_language_from_retrieval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return _gemini_response('{"assistant_text":"# 업무 보고서\\n## 완료 업무\\n- 근거 확인"}')
+
+    gateway = GeminiAgentGateway(
+        Settings(agent_mode="gemini"),
+        transport=httpx.MockTransport(handler),
+    )
+    result = _decide(
+        gateway,
+        message="모든 업무 내용을 바탕으로 업무 보고서 양식에 맞춘 초안을 작성해줘",
+    )
+
+    assert result.decision.search_query == "업무 보고서"
+    body = captured["body"]
+    prompt = json.loads(body["contents"][0]["parts"][0]["text"])
+    assert prompt["trusted_context"]["task"] == "draft_grounded_report"
+    assert "업무 보고서" in body["systemInstruction"]["parts"][0]["text"]
+    assert body["generationConfig"]["maxOutputTokens"] == 4_096
+    assert (
+        body["generationConfig"]["responseJsonSchema"]["properties"]["assistant_text"][
+            "maxLength"
+        ]
+        == 4_000
+    )
 
 
 def test_gemini_retries_only_transient_http_statuses(

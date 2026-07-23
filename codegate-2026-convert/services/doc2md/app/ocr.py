@@ -20,10 +20,12 @@ need no OCR never pay the model-load cost.
 from __future__ import annotations
 
 import io
+import importlib.util
 import logging
 import os
 import re
 import threading
+from pathlib import Path
 
 logger = logging.getLogger("doc2md.ocr")
 
@@ -130,32 +132,88 @@ _pipelines: dict[tuple[str, str], object] = {}
 _lock = threading.Lock()
 _failed = False
 _device_used = "unknown"
+_dll_directory_handles: list[object] = []
+
+
+class OcrGpuUnavailableError(RuntimeError):
+    """Raised when the GPU-only OCR runtime cannot initialize CUDA."""
+
+
+def _configure_nvidia_dll_directories() -> None:
+    """Expose pip-installed NVIDIA runtime DLLs to Paddle on Windows."""
+    if os.name != "nt" or _dll_directory_handles:
+        return
+
+    for package in ("nvidia.cublas", "nvidia.cuda_nvrtc", "nvidia.cudnn"):
+        spec = importlib.util.find_spec(package)
+        if spec is None or not spec.submodule_search_locations:
+            continue
+        for location in spec.submodule_search_locations:
+            bin_dir = Path(location) / "bin"
+            if not bin_dir.is_dir():
+                continue
+            _dll_directory_handles.append(os.add_dll_directory(str(bin_dir)))
+            os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
 
 
 def _pick_device() -> str:
-    """Prefer the GPU when one is actually usable, else CPU.
+    """Return the first usable CUDA device.
 
     Paddle only reaches an NVIDIA GPU through CUDA; an Intel iGPU is not usable
-    from this build regardless of being present. We probe the real runtime
-    instead of trusting that a GPU wheel is installed — a CUDA build with no
-    working CUDA runtime raises at first use, which would take OCR down with it.
+    from this build regardless of being present. OCR is deliberately GPU-only:
+    silently moving a large scan to CPU makes document preparation look hung
+    and can also hit CPU-only inference regressions.
     """
-    override = os.getenv("DOC2MD_OCR_DEVICE")
-    if override:
-        return override
+    override = os.getenv("DOC2MD_OCR_DEVICE", "gpu").strip().lower()
+    if override == "gpu":
+        requested_index = None
+    elif re.fullmatch(r"gpu:\d+", override):
+        requested_index = int(override.split(":", 1)[1])
+    else:
+        raise OcrGpuUnavailableError(
+            "DOC2MD_OCR_DEVICE must be 'gpu' or 'gpu:N'; CPU OCR is disabled"
+        )
+
+    _configure_nvidia_dll_directories()
     try:
         import paddle
-
-        if paddle.device.is_compiled_with_cuda() and paddle.device.cuda.device_count():
-            # force a real allocation; a broken CUDA runtime fails here, not later
-            paddle.set_device("gpu")
-            _ = paddle.zeros([8, 8])
-            name = paddle.device.cuda.get_device_name(0)
-            logger.info("OCR using GPU: %s", name)
-            return "gpu"
     except Exception as e:
-        logger.info("GPU unavailable (%s) — falling back to CPU", e)
-    return "cpu"
+        raise OcrGpuUnavailableError(f"CUDA-enabled Paddle is unavailable: {e}") from e
+
+    if not paddle.device.is_compiled_with_cuda():
+        raise OcrGpuUnavailableError(
+            "the installed Paddle wheel has no CUDA support; install paddlepaddle-gpu"
+        )
+
+    count = paddle.device.cuda.device_count()
+    if count < 1:
+        raise OcrGpuUnavailableError("no CUDA-capable NVIDIA GPU was detected")
+    if requested_index is not None and requested_index >= count:
+        raise OcrGpuUnavailableError(
+            f"DOC2MD_OCR_DEVICE requested gpu:{requested_index}, but only {count} GPU(s) exist"
+        )
+
+    indices = [requested_index] if requested_index is not None else list(range(count))
+    failures = []
+    for index in indices:
+        dev = f"gpu:{index}"
+        try:
+            # Force a real allocation so a missing CUDA runtime, an unusable
+            # device, or exhausted VRAM fails before the OCR model is built.
+            paddle.set_device(dev)
+            image = paddle.zeros([1, 1, 8, 8])
+            kernel = paddle.zeros([1, 1, 3, 3])
+            _ = paddle.nn.functional.conv2d(image, kernel)
+            name = paddle.device.cuda.get_device_name(index)
+            logger.info("OCR using GPU %s: %s", index, name)
+            return dev
+        except Exception as e:
+            failures.append(f"{dev}: {e}")
+            logger.warning("OCR GPU candidate %s is unusable: %s", dev, e)
+
+    raise OcrGpuUnavailableError(
+        "no usable CUDA GPU remained after probing: " + "; ".join(failures)
+    )
 
 
 def device() -> str:
@@ -194,24 +252,15 @@ def _get_pipeline(lang: str = DEFAULT_LANG, mode: str = FAST):
     with _lock:
         if key in _pipelines or _failed:
             return _pipelines.get(key)
-        dev = _device_used if _device_used in ("gpu", "cpu") else _pick_device()
         try:
+            dev = _device_used if _device_used.startswith("gpu:") else _pick_device()
             _pipelines[key] = _build(lang, dev, mode)
             _device_used = dev
             logger.info("OCR pipeline (lang=%s, mode=%s, device=%s) ready", lang, mode, dev)
         except Exception as e:  # paddle missing, broken CUDA, model fetch fail
-            if dev == "gpu":
-                # GPU wheel present but pipeline won't build (often 2GB VRAM OOM)
-                logger.warning("GPU pipeline failed (%s) — retrying on CPU", e)
-                try:
-                    _pipelines[key] = _build(lang, "cpu", mode)
-                    _device_used = "cpu"
-                    logger.info("OCR pipeline (lang=%s, mode=%s) ready on CPU", lang, mode)
-                    return _pipelines[key]
-                except Exception as e2:
-                    e = e2
             _failed = True
-            logger.warning("OCR unavailable, image text will be skipped: %s", e)
+            _device_used = "unavailable"
+            logger.error("GPU OCR unavailable; CPU fallback is disabled: %s", e)
     return _pipelines.get(key)
 
 

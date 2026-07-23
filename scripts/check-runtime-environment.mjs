@@ -18,6 +18,7 @@ const { cloudEnv, desktopEnv } = buildRuntimeEnvironments(
     sidecarBin: '/agent/codegate-local',
     backendDir: '/backend',
     localDir: '/local',
+    nodeBin: '/runtime/node',
   },
 );
 
@@ -35,5 +36,7 @@ assert.equal(desktopEnv.UNRELATED_SECRET, undefined);
 assert.equal(desktopEnv.CODEGATE_OAUTH_REDIRECT_URI, FIXED_CALLBACK);
 assert.equal(desktopEnv.CODEGATE_GEMINI_MODEL, 'gemini-2.5-flash-lite');
 assert.equal(desktopEnv.CODEGATE_GEMINI_DATA_POLICY, 'paid-no-training');
+assert.equal(desktopEnv.CODEGATE_NODE_BIN, '/runtime/node');
+assert.equal(desktopEnv.CODEGATE_KORDOC_WORKSPACE_ROOT, '/local');
 
 console.log('✓ root launcher secret scope and fixed runtime contract');

@@ -184,8 +184,30 @@ def test_turn_prompt_keeps_adversarial_text_inside_untrusted_json(
             "evidence_scope": "current_turn_only",
             "selected_document_id": "REG-000001",
         },
-        "untrusted_input": {"user_message": adversarial_message},
+        "untrusted_input": {
+            "conversation_history": [],
+            "user_message": adversarial_message,
+        },
     }
+
+
+def test_turn_prompt_carries_role_labeled_history_as_untrusted_context() -> None:
+    history = [
+        {"role": "user", "content": "일일업무 양식으로 작성해줘"},
+        {"role": "assistant", "content": "보고서 초안을 만들었습니다."},
+    ]
+
+    prompt = json.loads(
+        build_turn_prompt(
+            user_message="그 양식에 오늘 내용도 반영해줘",
+            selected_document_id=None,
+            graph_version="graph-v8",
+            conversation_history=history,
+        )
+    )
+
+    assert prompt["untrusted_input"]["conversation_history"] == history
+    assert "conversation_history" not in prompt["trusted_context"]
 
 
 def test_turn_prompt_preserves_absent_selected_document_as_null() -> None:
@@ -214,7 +236,7 @@ def test_structured_output_schema_requires_every_decision_field_and_describes_se
     for field in schema["required"]:
         assert schema["properties"][field]["description"]
     assert schema["additionalProperties"] is False
-    assert schema["properties"]["assistant_text"]["maxLength"] == 480
+    assert schema["properties"]["assistant_text"]["maxLength"] == 4_000
 
 
 def test_ready_locate_and_change_decisions_satisfy_cross_field_contract() -> None:

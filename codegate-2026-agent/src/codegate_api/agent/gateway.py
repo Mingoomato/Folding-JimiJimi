@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from codegate_api.agent.instructions import (
     PROMPT_CONTRACT_VERSION,
+    ConversationTurn,
     build_system_prompt,
     build_turn_prompt,
 )
@@ -94,7 +95,7 @@ class AgentDecision(BaseModel):
     )
     assistant_text: str = Field(
         min_length=1,
-        max_length=480,
+        max_length=4_000,
         description=(
             "For a ready locate, a concise Korean answer grounded only in current-turn tool "
             "evidence; otherwise a brief routing status. Never hidden reasoning or a write claim."
@@ -220,7 +221,7 @@ class GeminiLocateOutput(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    assistant_text: str = Field(min_length=1, max_length=480)
+    assistant_text: str = Field(min_length=1, max_length=4_000)
 
 
 class AgentGateway(Protocol):
@@ -243,6 +244,7 @@ class AgentGateway(Protocol):
         repository: KnowledgeRepository,
         access_context: AccessContext,
         resume_session_id: str | None = None,
+        conversation_history: list[ConversationTurn] | None = None,
     ) -> AgentRunResult: ...
 
 
@@ -269,8 +271,9 @@ class DeterministicAgentGateway:
         repository: KnowledgeRepository,
         access_context: AccessContext,
         resume_session_id: str | None = None,
+        conversation_history: list[ConversationTurn] | None = None,
     ) -> AgentRunResult:
-        del conversation_id, resume_session_id
+        del conversation_id, resume_session_id, conversation_history
         operation = _parse_replace_operation(message)
         document_id = selected_document_id or _extract_document_id(message)
         if operation is not None:
@@ -372,8 +375,9 @@ class GeminiAgentGateway:
         repository: KnowledgeRepository,
         access_context: AccessContext,
         resume_session_id: str | None = None,
+        conversation_history: list[ConversationTurn] | None = None,
     ) -> AgentRunResult:
-        del conversation_id, resume_session_id
+        del conversation_id, resume_session_id, conversation_history
         search_query = _bounded_search_query(message)
         extracted_document_id = _extract_document_id(message)
         if (
@@ -551,6 +555,15 @@ class GeminiAgentGateway:
             raise AgentGatewayError("AGENT_UNAVAILABLE", "Gemini API key가 설정되지 않았습니다.")
         model = self._settings.gemini_model
         endpoint = f"{self._API_ROOT}/{quote(model, safe='._-')}:generateContent"
+        report_draft = is_report_draft_request(message)
+        task = "draft_grounded_report" if report_draft else "summarize_retrieved_evidence"
+        report_instruction = (
+            " If the task is draft_grounded_report, return compact Korean Markdown with the "
+            "headings '업무 보고서', '완료 업무', '진행 업무', '주요 이슈', and '다음 업무'. "
+            "Omit a heading when the supplied evidence has no facts for it."
+            if report_draft
+            else ""
+        )
         request_body = {
             "systemInstruction": {
                 "parts": [
@@ -562,6 +575,7 @@ class GeminiAgentGateway:
                             "present in the supplied evidence. Do not invent facts, document IDs, "
                             "paths, hashes, edits, or citations. Do not claim that a file was "
                             "changed. Return exactly the requested JSON object."
+                            + report_instruction
                         )
                     }
                 ]
@@ -574,7 +588,7 @@ class GeminiAgentGateway:
                             "text": json.dumps(
                                 {
                                     "trusted_context": {
-                                        "task": "summarize_retrieved_evidence",
+                                        "task": task,
                                         "graph_version": graph_version,
                                     },
                                     "untrusted_input": {
@@ -591,7 +605,7 @@ class GeminiAgentGateway:
             ],
             "generationConfig": {
                 "temperature": 0.0,
-                "maxOutputTokens": 256,
+                "maxOutputTokens": 4_096 if report_draft else 1_024,
                 "thinkingConfig": {"thinkingBudget": 0},
                 "responseMimeType": "application/json",
                 "responseJsonSchema": {
@@ -601,7 +615,7 @@ class GeminiAgentGateway:
                             "type": "string",
                             "description": "A concise Korean answer grounded only in evidence.",
                             "minLength": 1,
-                            "maxLength": 480,
+                            "maxLength": 4_000 if report_draft else 480,
                         }
                     },
                     "required": ["assistant_text"],
@@ -782,6 +796,7 @@ class ClaudeAgentGateway:
         repository: KnowledgeRepository,
         access_context: AccessContext,
         resume_session_id: str | None = None,
+        conversation_history: list[ConversationTurn] | None = None,
     ) -> AgentRunResult:
         del conversation_id
         working_directory = self._settings.resolved_source_root()
@@ -817,6 +832,7 @@ class ClaudeAgentGateway:
             user_message=message,
             selected_document_id=selected_document_id,
             graph_version=repository.version,
+            conversation_history=conversation_history,
         )
         try:
             tool_calls: list[str] = []
@@ -1418,8 +1434,22 @@ def _extract_document_id(message: str) -> str | None:
 
 
 def _bounded_search_query(message: str) -> str:
+    if is_report_draft_request(message):
+        # Task-language such as "양식", "초안", and "작성" often occurs in
+        # unrelated contracts inside large OCR bundles. Search the business subject,
+        # while preserving the complete user request separately for generation.
+        return "업무 보고서"
     query = message.strip()[:4_000]
     return query or "문서 검색"
+
+
+def is_report_draft_request(message: str) -> bool:
+    folded = message.casefold()
+    has_report_subject = "보고서" in folded and ("업무" in folded or "work" in folded)
+    has_draft_action = any(
+        marker in folded for marker in ("작성", "초안", "양식", "만들", "draft", "write")
+    )
+    return has_report_subject and has_draft_action
 
 
 def _parse_replace_operation(message: str) -> ReplaceExactOperation | None:

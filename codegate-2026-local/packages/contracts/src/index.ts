@@ -361,6 +361,7 @@ export const IPC = {
   // L1 — 채팅
   chatList: 'chat:list',
   chatCreate: 'chat:create',
+  chatDelete: 'chat:delete',
   chatMessages: 'chat:messages',
   chatSend: 'chat:send',
   chatAbort: 'chat:abort',

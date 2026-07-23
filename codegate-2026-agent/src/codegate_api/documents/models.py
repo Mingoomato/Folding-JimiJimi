@@ -197,6 +197,7 @@ class HwpDerivationPayload(StrictDocumentModel):
     type: Literal["hwp.derive_hwpx/v1"] = "hwp.derive_hwpx/v1"
     source_document_id: str = Field(pattern=DOCUMENT_ID_PATTERN)
     expected_source_sha256: str = Field(pattern=SHA256_PATTERN)
+    markdown: str | None = Field(default=None, min_length=1, max_length=1_048_576)
 
 
 CreationPayload = Annotated[

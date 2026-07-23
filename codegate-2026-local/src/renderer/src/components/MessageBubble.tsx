@@ -11,10 +11,19 @@ import { CitationChip } from './CitationChip';
  *   사용자 — 우측 정렬 ink 버블 (브랜드 블루는 인용·액션에만 남겨 둔다)
  *   에이전트 — 전폭 본문 + 도구 배지 + 인용 칩
  */
-export function MessageBubble({ message }: { message: ChatMessage }) {
+export function MessageBubble({
+  message,
+  userQuery,
+}: {
+  message: ChatMessage;
+  userQuery?: string;
+}) {
   const [execution, setExecution] = useState(message.execution);
   const [action, setAction] = useState<'retry' | 'undo' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [savingHwpx, setSavingHwpx] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedPath, setSavedPath] = useState<string | null>(null);
 
   useEffect(() => setExecution(message.execution), [message.execution]);
 
@@ -29,6 +38,24 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
       setActionError(error instanceof Error ? error.message : '실행 상태를 변경하지 못했습니다.');
     } finally {
       setAction(null);
+    }
+  }
+
+  async function saveAsHwpx() {
+    if (savingHwpx || !message.text) return;
+    setSavingHwpx(true);
+    setSaveError(null);
+    try {
+      const template = message.citations?.find((citation) =>
+        citation.sourcePath?.toLowerCase().endsWith('.hwp'),
+      );
+      setSavedPath(
+        await window.codegate.document.saveHwpx(message.text, template?.sourcePath, userQuery),
+      );
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '한글 문서를 저장하지 못했습니다.');
+    } finally {
+      setSavingHwpx(false);
     }
   }
 
@@ -95,6 +122,24 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
             {message.citations.map((c, i) => (
               <CitationChip key={`${c.docId}-${c.section}-${i}`} citation={c} />
             ))}
+          </div>
+        )}
+
+        {!message.streaming &&
+          message.text &&
+          !unresolved &&
+          message.citations &&
+          message.citations.length > 0 && (
+          <div className="mt-3.5 flex flex-wrap items-center gap-2 text-xs">
+            <button
+              disabled={savingHwpx}
+              onClick={() => void saveAsHwpx()}
+              className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              {savingHwpx ? '미리보기 준비 중…' : 'HWPX로 저장'}
+            </button>
+            {savedPath && <span className="text-green-700">승인된 문서를 생성했습니다.</span>}
+            {saveError && <span className="text-red-600">{saveError}</span>}
           </div>
         )}
 

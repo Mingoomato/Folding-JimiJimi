@@ -1,8 +1,10 @@
-import { MessageSquarePlus, Settings } from 'lucide-react';
+import { useState } from 'react';
+import { MessageSquarePlus, Settings, Trash2 } from 'lucide-react';
 import type { Conversation, Session } from '@contracts';
 import { cn } from '@/lib/cn';
 import { formatRelative } from '@/lib/format';
 import { Logo } from '@/ui/Wordmark';
+import { DeleteConversationDialog } from './DeleteConversationDialog';
 
 /** 좌측 패널 — 채팅 목록. */
 export function ChatList({
@@ -10,6 +12,7 @@ export function ChatList({
   activeId,
   onSelect,
   onCreate,
+  onDelete,
   session,
   onOpenSettings,
 }: {
@@ -17,11 +20,33 @@ export function ChatList({
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onDelete: (id: string) => Promise<void>;
   session: Session;
   onOpenSettings: () => void;
 }) {
+  const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete(): Promise<void> {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : '채팅을 삭제하지 못했습니다. 다시 시도해 주세요.',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <aside className="flex min-h-0 flex-col border-r border-ink-100 bg-white">
+    <>
+      <aside className="flex min-h-0 flex-col border-r border-ink-100 bg-white">
       {/* 로고는 타이틀바가 아니라 여기 — 창 신호등 바로 아래 자리다. */}
       <div className="px-4 pb-1 pt-4">
         <Logo height={22} />
@@ -47,11 +72,11 @@ export function ChatList({
           {conversations.map((c) => {
             const active = c.id === activeId;
             return (
-              <li key={c.id}>
+              <li key={c.id} className="group relative">
                 <button
                   onClick={() => onSelect(c.id)}
                   className={cn(
-                    'flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left',
+                    'flex w-full flex-col items-start gap-0.5 rounded-md py-2 pl-3 pr-10 text-left',
                     'transition-colors duration-[--dur-fast] ease-[--ease-standard] fold-focus',
                     active
                       ? 'bg-blue-50 text-blue-700'
@@ -69,6 +94,23 @@ export function ChatList({
                   <span className="font-mono text-2xs text-ink-400">
                     {formatRelative(c.updatedAt)}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${c.title} 채팅 삭제`}
+                  title="채팅 삭제"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setDeleteError(null);
+                    setDeleteTarget(c);
+                  }}
+                  className={cn(
+                    'absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md',
+                    'text-ink-400 opacity-0 transition-colors hover:bg-red-50 hover:text-red-600',
+                    'group-hover:opacity-100 group-focus-within:opacity-100 fold-focus',
+                  )}
+                >
+                  <Trash2 size={14} />
                 </button>
               </li>
             );
@@ -94,6 +136,18 @@ export function ChatList({
           </span>
         </button>
       </div>
-    </aside>
+      </aside>
+      <DeleteConversationDialog
+        conversation={deleteTarget}
+        deleting={deleting}
+        error={deleteError}
+        onCancel={() => {
+          if (deleting) return;
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDelete()}
+      />
+    </>
   );
 }

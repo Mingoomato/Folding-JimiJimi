@@ -25,6 +25,7 @@ class ProposedDocument:
     structural_diff: list[StructuralDiff]
     warnings: list[str]
     writer_fingerprint: str
+    preview_before: bytes | None = None
 
 
 class DocumentWriter(Protocol):

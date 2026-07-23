@@ -43,6 +43,7 @@ class SessionStubAgent:
     def __init__(self, decision: AgentDecision) -> None:
         self._decision = decision
         self.resume_attempts: list[str | None] = []
+        self.histories: list[list[dict[str, str]]] = []
 
     @property
     def session_ttl_seconds(self) -> int:
@@ -53,6 +54,7 @@ class SessionStubAgent:
 
     async def decide(self, **kwargs: Any) -> AgentRunResult:
         self.resume_attempts.append(kwargs.get("resume_session_id"))
+        self.histories.append(kwargs.get("conversation_history") or [])
         if len(self.resume_attempts) == 2:
             raise AgentGatewayError("AGENT_TIMEOUT", "timed out")
         return AgentRunResult(
@@ -162,6 +164,10 @@ def test_chat_service_resumes_only_after_the_latest_successful_sdk_run(
         "11111111-1111-4111-8111-111111111111",
         None,
     ]
+    assert agent.histories[0] == []
+    assert [item["role"] for item in agent.histories[1]] == ["user", "assistant"]
+    assert agent.histories[1][0]["content"] == "unsafe request 0"
+    assert agent.histories[2][-2]["content"] == "unsafe request 1"
 
 
 def test_change_preview_rejects_selected_and_verified_target_mismatch(

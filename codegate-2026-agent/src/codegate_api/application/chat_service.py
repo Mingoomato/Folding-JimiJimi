@@ -4,7 +4,13 @@ import asyncio
 import hashlib
 from uuid import uuid4
 
-from codegate_api.agent.gateway import AgentGateway, AgentGatewayError, AgentOutcome
+from codegate_api.agent.gateway import (
+    AgentGateway,
+    AgentGatewayError,
+    AgentOutcome,
+    is_report_draft_request,
+)
+from codegate_api.agent.instructions import ConversationTurn
 from codegate_api.changes.hashing import request_hash
 from codegate_api.changes.service import ChangePlanService, ChangeServiceError
 from codegate_api.documents.models import (
@@ -32,6 +38,29 @@ from codegate_api.state.store import StateStore
 
 MAX_LOCATION_DOCUMENTS = 1
 MAX_LOCATION_ANSWER_CHARS = 480
+MAX_REPORT_ANSWER_CHARS = 4_000
+MAX_CONVERSATION_HISTORY_MESSAGES = 20
+MAX_CONVERSATION_HISTORY_CHARS = 16_000
+
+
+def _bounded_conversation_history(messages: list[dict[str, str]]) -> list[ConversationTurn]:
+    selected: list[ConversationTurn] = []
+    remaining = MAX_CONVERSATION_HISTORY_CHARS
+    for message in reversed(messages):
+        role = message.get("role")
+        content = message.get("content", "").strip()
+        if role not in {"user", "assistant"} or not content or remaining <= 0:
+            continue
+        bounded = content[-remaining:]
+        selected.append(
+            ConversationTurn(
+                role="user" if role == "user" else "assistant",
+                content=bounded,
+            )
+        )
+        remaining -= len(bounded)
+    selected.reverse()
+    return selected
 
 
 class ChatService:
@@ -49,6 +78,27 @@ class ChatService:
         self._state = state
         self._conversation_locks: dict[str, asyncio.Lock] = {}
         self._lock_guard = asyncio.Lock()
+
+    async def delete_conversation(
+        self,
+        *,
+        conversation_id: str,
+        access_context: AccessContext,
+    ) -> None:
+        tenant_id = access_context.tenant_id or "public"
+        subject_id = access_context.subject_id or "anonymous"
+        owner_key = f"{tenant_id}:{subject_id}:{conversation_id}"
+        async with self._lock_guard:
+            conversation_lock = self._conversation_locks.setdefault(owner_key, asyncio.Lock())
+        async with conversation_lock:
+            self._state.delete_conversation(
+                conversation_id=conversation_id,
+                tenant_id=tenant_id,
+                subject_id=subject_id,
+            )
+        async with self._lock_guard:
+            if not conversation_lock.locked():
+                self._conversation_locks.pop(owner_key, None)
 
     async def create_message(
         self,
@@ -159,6 +209,14 @@ class ChatService:
             repository=repository,
             access_context=access_context,
         )
+        conversation_history = _bounded_conversation_history(
+            self._state.recent_messages(
+                conversation_id=request.conversation_id,
+                tenant_id=tenant_id,
+                subject_id=subject_id,
+                limit=MAX_CONVERSATION_HISTORY_MESSAGES,
+            )
+        )
         resume_session_id = (
             self._state.latest_agent_session(
                 conversation_id=request.conversation_id,
@@ -200,6 +258,7 @@ class ChatService:
                 repository=repository,
                 access_context=access_context,
                 resume_session_id=resume_session_id,
+                conversation_history=conversation_history,
             )
         except AgentGatewayError as error:
             if authenticated:
@@ -465,7 +524,11 @@ class ChatService:
             conversation_id=request.conversation_id,
             message_id=message_id,
             response_type=ResponseType.LOCATION_RESULT,
-            assistant_text=_compact_answer(assistant_text),
+            assistant_text=(
+                _report_answer(assistant_text)
+                if is_report_draft_request(request.message)
+                else _compact_answer(assistant_text)
+            ),
             documents=displayed_documents,
         )
 
@@ -613,3 +676,10 @@ def _compact_answer(value: str) -> str:
     if sentence_end >= MAX_LOCATION_ANSWER_CHARS // 3:
         return candidate[: sentence_end + 1].rstrip()
     return candidate.rstrip() + "…"
+
+
+def _report_answer(value: str) -> str:
+    answer = value.strip()
+    if len(answer) <= MAX_REPORT_ANSWER_CHARS:
+        return answer
+    return answer[:MAX_REPORT_ANSWER_CHARS].rstrip() + "…"

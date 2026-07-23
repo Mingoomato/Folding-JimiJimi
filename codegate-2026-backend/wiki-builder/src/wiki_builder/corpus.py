@@ -16,6 +16,13 @@ from wiki_builder.provenance import compatible_model_fingerprint, model_display_
 from wiki_builder.schemas import validate_record
 
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+SEMANTIC_TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]{2,}")
+SEMANTIC_STOP_WORDS = frozenset(
+    {"문서", "파일", "내용", "업무", "보고서", "작성", "관련", "대한", "위한", "그리고"}
+)
+SEMANTIC_MIN_SHARED_TOKENS = 4
+SEMANTIC_MIN_CONTAINMENT = 0.35
+SEMANTIC_MAX_LINKS_PER_DOCUMENT = 3
 
 
 def normalize_alias(value: str) -> str:
@@ -161,6 +168,93 @@ def extract_links(documents: Iterable[Document]) -> list[Link]:
     return links
 
 
+def _semantic_tokens(text: str) -> set[str]:
+    return {
+        token.lower()
+        for token in SEMANTIC_TOKEN_RE.findall(unicodedata.normalize("NFC", text))
+        if token.lower() not in SEMANTIC_STOP_WORDS
+    }
+
+
+def _semantic_evidence(document: Document, shared: set[str]) -> tuple[str, str] | None:
+    ranked = sorted(
+        document.sections,
+        key=lambda section: len(_semantic_tokens(section.evidence_text) & shared),
+        reverse=True,
+    )
+    for section in ranked:
+        for line in section.evidence_text.splitlines():
+            quote = line.strip()
+            if quote and _semantic_tokens(quote) & shared:
+                return section.section_id, quote[:500]
+    return None
+
+
+def discover_links(config: WikiConfig, documents: Iterable[Document]) -> list[Link]:
+    """Combine explicit Markdown links with bounded local content-similarity candidates."""
+    document_list = list(documents)
+    explicit = extract_links(document_list)
+    synthetic_corpus = bool(
+        config.scope.get(
+            "synthetic_corpus",
+            config.raw.get("defaults", {}).get("synthetic_corpus", False),
+        )
+    )
+    if synthetic_corpus or len(document_list) < 2:
+        return explicit
+
+    tokens_by_id = {
+        document.doc_id: _semantic_tokens(document.normalized_body)
+        for document in document_list
+    }
+    postings: dict[str, set[str]] = defaultdict(set)
+    for document_id, tokens in tokens_by_id.items():
+        for token in tokens:
+            postings[token].add(document_id)
+    explicit_targets = {(link.from_doc_id, link.to_doc_id) for link in explicit}
+    semantic: list[Link] = []
+    for document in document_list:
+        source_tokens = tokens_by_id[document.doc_id]
+        overlap_counts: Counter[str] = Counter()
+        for token in source_tokens:
+            overlap_counts.update(postings[token] - {document.doc_id})
+        ranked: list[tuple[float, int, str, set[str]]] = []
+        for target_id, shared_count in overlap_counts.items():
+            if shared_count < SEMANTIC_MIN_SHARED_TOKENS:
+                continue
+            target_tokens = tokens_by_id[target_id]
+            denominator = min(len(source_tokens), len(target_tokens))
+            if denominator == 0:
+                continue
+            containment = shared_count / denominator
+            if containment < SEMANTIC_MIN_CONTAINMENT:
+                continue
+            shared = source_tokens & target_tokens
+            ranked.append((containment, shared_count, target_id, shared))
+        ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
+        added = 0
+        for _score, _shared_count, target_id, shared in ranked:
+            if (document.doc_id, target_id) in explicit_targets:
+                continue
+            evidence = _semantic_evidence(document, shared)
+            if evidence is None:
+                continue
+            section_id, quote = evidence
+            semantic.append(
+                Link(
+                    from_doc_id=document.doc_id,
+                    from_section_id=section_id,
+                    to_doc_id=target_id,
+                    evidence_quote=quote,
+                    origin="semantic",
+                )
+            )
+            added += 1
+            if added >= SEMANTIC_MAX_LINKS_PER_DOCUMENT:
+                break
+    return [*explicit, *semantic]
+
+
 def build_links(
     config: WikiConfig,
     links: Iterable[Link],
@@ -171,7 +265,7 @@ def build_links(
         relation_type = link.relation_type
         origin = link.origin
         enrichment = enrichments.get(link.from_doc_id)
-        if enrichment:
+        if enrichment and link.origin == "explicit":
             relation = next(
                 (item for item in enrichment["relations"] if item["to_doc_id"] == link.to_doc_id),
                 None,
@@ -319,10 +413,10 @@ def build_manifest(
 
 def assemble_build_data(config: WikiConfig, documents: list[Document]) -> BuildData:
     approved, statuses = current_enrichments(config, documents)
-    explicit_links = extract_links(documents)
+    discovered_links = discover_links(config, documents)
     chunks = build_chunks(config, documents)
     aliases = build_aliases(config, documents)
-    links = build_links(config, explicit_links, approved)
+    links = build_links(config, discovered_links, approved)
     manifest = build_manifest(config, documents, chunks, links, approved, statuses)
     return BuildData(
         documents=documents,
@@ -341,7 +435,7 @@ def verify_expected_corpus(expected: dict[str, Any], data: BuildData) -> None:
         "documents": (len(data.documents), int(expected["documents"])),
         "chunks": (len(data.chunks), int(expected["chunks"])),
         "aliases": (len(data.aliases["entries"]), int(expected["aliases"])),
-        "explicit_links": (len(data.links), int(expected["explicit_links"])),
+        "explicit_links": (len(extract_links(data.documents)), int(expected["explicit_links"])),
     }
     failures = [
         f"{name}: 실제 {actual}, 예상 {wanted}"

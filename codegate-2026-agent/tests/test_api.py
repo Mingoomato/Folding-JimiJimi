@@ -176,6 +176,68 @@ def test_chat_returns_structured_not_found(client: TestClient) -> None:
     assert payload["error"]["code"] == "DOCUMENT_NOT_FOUND"
 
 
+def test_delete_chat_conversation_removes_only_the_authenticated_owners_history(
+    test_app: FastAPI,
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    state = test_app.state.container.state
+    owners = (("demo-editor", "owned-message"), ("other-user", "other-message"))
+    for subject_id, message_id in owners:
+        state.record_message(
+            conversation_id="conversation-to-delete",
+            tenant_id="demo",
+            subject_id=subject_id,
+            message_id=message_id,
+            role="user",
+            content="keep scoped history private",
+        )
+    state.record_agent_run(
+        run_id="owned-run",
+        conversation_id="conversation-to-delete",
+        tenant_id="demo",
+        subject_id="demo-editor",
+        status="succeeded",
+        provider="claude",
+        runtime_fingerprint="runtime-1",
+        session_id="session-1",
+    )
+
+    response = client.delete(
+        "/api/v2/chat/conversations/conversation-to-delete",
+        headers=auth_headers,
+    )
+    replay = client.delete(
+        "/api/v2/chat/conversations/conversation-to-delete",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == replay.status_code == 204
+    assert state.recent_messages(
+        conversation_id="conversation-to-delete",
+        tenant_id="demo",
+        subject_id="demo-editor",
+    ) == []
+    assert state.latest_agent_session(
+        conversation_id="conversation-to-delete",
+        tenant_id="demo",
+        subject_id="demo-editor",
+        runtime_fingerprint="runtime-1",
+        max_age_seconds=3_600,
+    ) is None
+    assert state.recent_messages(
+        conversation_id="conversation-to-delete",
+        tenant_id="demo",
+        subject_id="other-user",
+    ) == [{"role": "user", "content": "keep scoped history private"}]
+
+
+def test_delete_chat_conversation_requires_authentication(client: TestClient) -> None:
+    response = client.delete("/api/v2/chat/conversations/conversation-to-delete")
+
+    assert response.status_code == 401
+
+
 def test_document_detail_returns_404_for_unknown_id(client: TestClient) -> None:
     response = client.get("/api/v1/documents/REG-999999")
 

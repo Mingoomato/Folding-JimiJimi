@@ -222,6 +222,11 @@ function GraphCanvas({ graph, focusPath }: { graph: WikiGraph; focusPath: string
         <span className="text-2xs text-ink-400">
           문서 {graph.nodes.length} · 관계 {graph.edges.length}
         </span>
+        {graph.nodes.length > 0 && graph.edges.length === 0 && (
+          <span className="text-2xs text-amber-600">
+            검증된 문서 간 관계가 아직 없습니다
+          </span>
+        )}
         {focusPath && fromTree.reason && (
           /*
            * 조용히 넘어가면 "왜 안 켜지지" 가 된다. 그리고 **못 찾은 것과 여럿인 것은 다르다** —

@@ -4,6 +4,7 @@ from threading import Lock
 
 from pydantic import ValidationError
 
+from app import __version__
 from app.data_paths import atomic_write_text, state_path
 from app.schemas import RawConversion
 
@@ -18,7 +19,9 @@ def _cache_key(path: Path) -> str:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1 << 16), b""):
             digest.update(chunk)
-    raw = f"{path.resolve()}|{digest.hexdigest()}"
+    # Converter changes can alter OCR output for identical source bytes. Keep
+    # stale results from an older runtime from bypassing the repaired pipeline.
+    raw = f"{__version__}|{path.resolve()}|{digest.hexdigest()}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 

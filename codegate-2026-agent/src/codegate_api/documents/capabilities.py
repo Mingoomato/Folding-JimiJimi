@@ -143,7 +143,7 @@ class DocumentCapabilityRegistry:
                 format=format_,
                 operations=OPERATIONS[format_],
                 read=True,
-                create=format_ is DocumentFormat.HWPX and not reasons,
+                create=not reasons,
                 mutate=format_ is DocumentFormat.HWPX and not reasons,
                 render=format_ is DocumentFormat.HWPX and not reasons,
                 active=not reasons,

@@ -77,6 +77,26 @@ describe('readWikiGraph', () => {
     ]);
   });
 
+  it('agent 호환 링크 스키마도 그래프 엣지로 읽는다', async () => {
+    await seed(
+      'build-agent-compatible',
+      [doc('REG-000001'), doc('REP-000001')],
+      [
+        {
+          source_id: 'REG-000001',
+          target_id: 'REP-000001',
+          relation: 'VERIFIED_BY',
+          status: 'VERIFIED',
+          evidence_chunk_ids: ['REG-000001@1#sec-001'],
+        },
+      ],
+    );
+
+    expect((await readWikiGraph(location())).edges).toEqual([
+      { from: 'REG-000001', to: 'REP-000001', relationType: 'VERIFIED_BY' },
+    ]);
+  });
+
   it('한쪽 끝이 없는 링크는 버린다 — 정체불명의 점을 만들지 않는다', async () => {
     await seed(
       'build-abc',

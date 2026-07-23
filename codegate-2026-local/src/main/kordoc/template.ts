@@ -4,8 +4,65 @@ import { UserFacingError } from '@main/util/errors';
 
 export const TEMPLATE_EXTENSIONS = ['.hwp', '.hwpx'] as const;
 
+export interface IndexedTemplateCandidate {
+  absPath: string;
+  relPath: string;
+  status: string;
+  deleted: boolean;
+}
+
+const QUERY_STOP_WORDS = new Set([
+  '문서', '파일', '양식', '서식', '내용', '모두', '기존', '복사본',
+  '작성', '작성해줘', '작성해주세요', '만들어줘', '만들어주세요',
+  '생성', '생성해줘', '생성해주세요', '저장', '저장해줘', '저장해주세요',
+]);
+
 export function isTemplate(filePath: string): boolean {
   return (TEMPLATE_EXTENSIONS as readonly string[]).includes(path.extname(filePath).toLowerCase());
+}
+
+function normalized(value: string): string {
+  return value.normalize('NFKC').toLowerCase().replace(/[^0-9a-z가-힣]+/g, '');
+}
+
+function queryTokens(query: string): string[] {
+  return query
+    .normalize('NFKC')
+    .toLowerCase()
+    .split(/[^0-9a-z가-힣]+/)
+    .filter((token) => token.length >= 2 && !QUERY_STOP_WORDS.has(token));
+}
+
+/** 인덱싱 완료된 HWP 중 질의와 파일명이 유일하게 가장 잘 맞는 양식을 고른다. */
+export function selectHwpTemplate(
+  files: readonly IndexedTemplateCandidate[],
+  userQuery: string,
+): IndexedTemplateCandidate | null {
+  const eligible = files.filter((file) => (
+    !file.deleted
+    && file.status === 'done'
+    && path.extname(file.absPath).toLowerCase() === '.hwp'
+  ));
+  if (eligible.length === 0) return null;
+  if (eligible.length === 1) return eligible[0]!;
+
+  const query = normalized(userQuery);
+  const tokens = queryTokens(userQuery);
+  const ranked = eligible.map((file) => {
+    const stem = normalized(path.basename(file.relPath, path.extname(file.relPath)));
+    const relative = normalized(file.relPath);
+    let score = stem && query.includes(stem) ? 100 : 0;
+    for (const token of tokens) {
+      if (stem.includes(token) || token.includes(stem)) score += 20;
+      else if (relative.includes(token)) score += 5;
+    }
+    if (/(양식|서식|template)/i.test(file.relPath)) score += 2;
+    return { file, score };
+  }).sort((left, right) => right.score - left.score || left.file.relPath.localeCompare(right.file.relPath));
+
+  const best = ranked[0]!;
+  const second = ranked[1];
+  return best.score > 0 && best.score > (second?.score ?? -1) ? best.file : null;
 }
 
 interface KordocReadApi {

@@ -221,6 +221,8 @@ def _validate_config(data: dict[str, Any]) -> None:
         enrichment,
         {
             "max_attempts",
+            "max_input_chars",
+            "max_input_sections",
             "summary_min_sentences",
             "summary_max_sentences",
             "key_points_min",
@@ -286,6 +288,8 @@ def _validate_config(data: dict[str, Any]) -> None:
     _positive_integer("provider.request_timeout_seconds", provider["request_timeout_seconds"])
     _positive_integer("provider.thinking_budget", provider["thinking_budget"], allow_zero=True)
     _positive_integer("enrichment.max_attempts", enrichment["max_attempts"])
+    _positive_integer("enrichment.max_input_chars", enrichment["max_input_chars"])
+    _positive_integer("enrichment.max_input_sections", enrichment["max_input_sections"])
     allowed_access = security["external_llm_allowed_access"]
     if not isinstance(allowed_access, list) or not set(allowed_access) <= {
         "public",

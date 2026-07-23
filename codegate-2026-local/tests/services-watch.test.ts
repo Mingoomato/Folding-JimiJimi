@@ -4,6 +4,7 @@ import { IPC } from '@contracts';
 import {
   assertWriteProvisioning,
   DEFAULT_CLOUD_API_URL,
+  managedDocumentChangeMatches,
   watchChangeNeedsKnowledgeSync,
 } from '@main/services';
 
@@ -35,6 +36,25 @@ describe('watch knowledge sync routing', () => {
     ).toBe(true);
     expect(watchChangeNeedsKnowledgeSync('unlink', indexed, null)).toBe(true);
     expect(watchChangeNeedsKnowledgeSync('unlink', { ...indexed, deleted: true }, null)).toBe(false);
+  });
+
+  it('승인 executor가 만든 동일 path+SHA 파일만 일반 watcher 재빌드에서 제외한다', () => {
+    expect(
+      managedDocumentChangeMatches(
+        '보고서\\일일업무.HWPX',
+        'A'.repeat(64),
+        '보고서/일일업무.hwpx',
+        'a'.repeat(64),
+      ),
+    ).toBe(true);
+    expect(
+      managedDocumentChangeMatches(
+        '보고서/일일업무.hwpx',
+        'b'.repeat(64),
+        '보고서/일일업무.hwpx',
+        'a'.repeat(64),
+      ),
+    ).toBe(false);
   });
 });
 

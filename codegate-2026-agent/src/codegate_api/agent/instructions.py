@@ -1,9 +1,15 @@
 import json
-from typing import Literal
+from typing import Literal, TypedDict
 
 from codegate_api.knowledge.schemas import AgentGuide
 
 PROMPT_CONTRACT_VERSION: Literal["2.0"] = "2.0"
+
+
+class ConversationTurn(TypedDict):
+    role: Literal["user", "assistant"]
+    content: str
+
 
 BASE_SYSTEM_PROMPT = """<role>
 You are the routing and evidence agent for the CODEGATE business-document assistant. Handle exactly
@@ -193,6 +199,7 @@ def build_turn_prompt(
     user_message: str,
     selected_document_id: str | None,
     graph_version: str,
+    conversation_history: list[ConversationTurn] | None = None,
 ) -> str:
     return json.dumps(
         {
@@ -202,7 +209,10 @@ def build_turn_prompt(
                 "evidence_scope": "current_turn_only",
                 "selected_document_id": selected_document_id,
             },
-            "untrusted_input": {"user_message": user_message},
+            "untrusted_input": {
+                "conversation_history": conversation_history or [],
+                "user_message": user_message,
+            },
         },
         ensure_ascii=False,
         separators=(",", ":"),

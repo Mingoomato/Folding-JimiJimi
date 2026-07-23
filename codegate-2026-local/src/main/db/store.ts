@@ -349,6 +349,13 @@ export class Store {
     return row ?? null;
   }
 
+  deleteConversation(id: string): void {
+    this.db.transaction((conversationId: string) => {
+      this.db.prepare(`DELETE FROM messages WHERE conversation_id = ?`).run(conversationId);
+      this.db.prepare(`DELETE FROM conversations WHERE id = ?`).run(conversationId);
+    })(id);
+  }
+
   /* ------------------------------------------------------------ 메시지 */
 
   listMessages(conversationId: string): ChatMessage[] {

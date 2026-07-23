@@ -7,7 +7,7 @@ import { AUTH_ERROR_MESSAGE, AuthError, authErrorKindFromStatus } from '@contrac
 import { UserFacingError } from '@main/util/errors';
 
 export interface HttpOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'DELETE';
   /** 토큰이 필요한 요청이면 넘긴다. */
   token?: string;
   body?: RequestInit['body'];

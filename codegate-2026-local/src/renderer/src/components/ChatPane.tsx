@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AlertTriangle, ArrowUp, Square, X } from 'lucide-react';
-import type { BuildState } from '@contracts';
+import type { BuildState, ChatMessage } from '@contracts';
 import { BUILD_PHASE_LABEL } from '@contracts';
 import type { useChat } from '@/state/useChat';
 import { cn } from '@/lib/cn';
@@ -112,8 +112,12 @@ export function ChatPane({ chat, build }: { chat: Chat; build: BuildState | null
           <EmptyState onPick={(t) => setDraft(t)} />
         ) : (
           <div className="mx-auto flex max-w-[760px] flex-col gap-7 pb-8">
-            {chat.messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
+            {chat.messages.map((m, index) => (
+              <MessageBubble
+                key={m.id}
+                message={m}
+                userQuery={m.role === 'assistant' ? precedingUserQuery(chat.messages, index) : undefined}
+              />
             ))}
           </div>
         )}
@@ -177,6 +181,13 @@ export function ChatPane({ chat, build }: { chat: Chat; build: BuildState | null
       </div>
     </main>
   );
+}
+
+function precedingUserQuery(messages: readonly ChatMessage[], index: number): string | undefined {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (messages[cursor]?.role === 'user') return messages[cursor]?.text;
+  }
+  return undefined;
 }
 
 function EmptyState({ onPick }: { onPick: (t: string) => void }) {

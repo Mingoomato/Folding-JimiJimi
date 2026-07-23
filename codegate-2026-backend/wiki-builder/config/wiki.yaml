@@ -52,7 +52,7 @@ provider:
   top_p: 0.8
   top_k: 20
   seed: 42
-  max_output_tokens: 4096
+  max_output_tokens: 8192
   thinking_budget: 0
   request_timeout_seconds: 180
   api_max_attempts: 5
@@ -74,6 +74,8 @@ security:
 
 enrichment:
   max_attempts: 3
+  max_input_chars: 80000
+  max_input_sections: 64
   summary_min_sentences: 2
   summary_max_sentences: 3
   key_points_min: 3

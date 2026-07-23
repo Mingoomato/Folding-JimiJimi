@@ -12,12 +12,50 @@ from wiki_builder.config import WikiConfig, WikiScope, scoped_config
 from wiki_builder.corpus import extract_links
 from wiki_builder.enrichment import (
     _enforce_external_processing_policy,
+    _request_payload,
     enrich_documents,
     sanitize_optional_grounding,
     validate_grounding,
 )
 from wiki_builder.errors import ValidationError
 from wiki_builder.markdown import load_documents
+from wiki_builder.models import Document, Section
+
+
+def test_request_payload_samples_large_documents_within_limits(tmp_path: Path) -> None:
+    sections = tuple(
+        Section(
+            section_id=f"sec-{index:010x}",
+            heading=f"Section {index}",
+            heading_path=(f"Section {index}",),
+            ordinal=index,
+            text=(f"evidence-{index} " * 200),
+        )
+        for index in range(100)
+    )
+    document = Document(
+        input_path=tmp_path / "large.md",
+        input_relative_path="large.md",
+        output_relative_path="large.md",
+        metadata={"id": "DOC-LARGE", "revision": "1", "title": "Large"},
+        original_sha256="0" * 64,
+        normalized_markdown="",
+        normalized_body="",
+        sections=sections,
+        h1_title="Large",
+    )
+
+    payload = _request_payload(document, [], max_chars=8000, max_sections=16)
+
+    assert len(payload["sections"]) == 16
+    assert payload["sections"][0]["section_id"] == sections[0].section_id
+    assert payload["sections"][-1]["section_id"] == sections[-1].section_id
+    assert sum(len(section["text"]) for section in payload["sections"]) <= 8000
+    assert payload["sampling"] == {
+        "total_sections": 100,
+        "included_sections": 16,
+        "truncated": True,
+    }
 
 
 def _valid_record(config: WikiConfig):

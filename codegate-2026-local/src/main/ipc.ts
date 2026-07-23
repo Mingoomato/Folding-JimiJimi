@@ -6,13 +6,15 @@
  * (스펙 v1.4 §5 silent fail 금지).
  */
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { dialog, ipcMain, shell, type BrowserWindow } from 'electron';
 import { IPC, type LlmKeyInput, type LlmProvider, type LoginRequest } from '@contracts';
 import type { AppServices } from '@main/services';
-import { GENERATED_EXTENSION, titleFromMarkdown } from '@main/kordoc/generate';
+import { GENERATED_EXTENSION, titleFromUserQuery, uniquePath } from '@main/kordoc/generate';
+import { selectHwpTemplate } from '@main/kordoc/template';
 import type { DocumentPlanResponse } from '@main/sidecar/client';
-import { logError, toUserMessage } from '@main/util/errors';
+import { stableDocumentId } from '@main/sidecar/input-sync';
+import { UserFacingError, logError, toUserMessage } from '@main/util/errors';
+import { sourceUriToRelativePath } from '@main/util/vpath';
 
 /** 핸들러를 감싸 오류를 한국어 문장으로 정규화한다. */
 function handle<T>(
@@ -99,6 +101,9 @@ export function registerIpcHandlers(
 
   handle(IPC.chatList, '채팅 목록을 불러오지 못했습니다.', () => services.chat.list());
   handle(IPC.chatCreate, '새 채팅을 만들지 못했습니다.', () => services.chat.create());
+  handle(IPC.chatDelete, '채팅을 삭제하지 못했습니다.', (conversationId: string) =>
+    services.chat.delete(conversationId),
+  );
   handle(IPC.chatMessages, '대화 내용을 불러오지 못했습니다.', (conversationId: string) =>
     services.chat.messages(conversationId),
   );
@@ -161,14 +166,52 @@ export function registerIpcHandlers(
    * 새 파일을 만드는 일은 되돌릴 원본이 없어서, 어디에 무엇이 생기는지 보이는 편이 낫다.
    * 저장하면 watcher 가 잡아 다음 빌드에 자연스럽게 들어온다.
    */
-  handle(IPC.documentSaveHwpx, '한글 문서를 저장하지 못했습니다.', async (markdown: string) => {
+  handle(IPC.documentSaveHwpx, '한글 문서를 저장하지 못했습니다.', async (
+    markdown: string,
+    templateSourcePath?: string,
+    userQuery?: string,
+  ) => {
     const window = getWindow();
     const rootPath = services.primaryRootPath();
     if (!rootPath) throw new Error('먼저 문서를 저장할 작업 폴더를 등록해 주세요.');
-    const suggested = `${titleFromMarkdown(markdown)}${GENERATED_EXTENSION}`;
+    let templatePath = templateSourcePath
+      ? services.resolveOriginal(templateSourcePath)
+      : null;
+    const indexedFiles = services.store.listFiles();
+    if (!templatePath || path.extname(templatePath).toLowerCase() !== '.hwp') {
+      templatePath = selectHwpTemplate(indexedFiles, userQuery ?? markdown)?.absPath ?? null;
+    }
+    if (!templatePath || path.extname(templatePath).toLowerCase() !== '.hwp') {
+      const picked = await dialog.showOpenDialog(window ?? undefined!, {
+        title: '사용할 한글 양식 선택',
+        defaultPath: rootPath,
+        properties: ['openFile'],
+        filters: [{ name: '한글 양식', extensions: ['hwp'] }],
+      });
+      if (picked.canceled || picked.filePaths.length !== 1) return null;
+      templatePath = picked.filePaths[0]!;
+    }
+    const templateRelativePath = confinedSourceRelativePath(rootPath, templatePath, '.hwp');
+    const graph = await services.getWikiGraph();
+    const templateDocument = graph.nodes.find((node) => {
+      const relative = node.sourceUri ? sourceUriToRelativePath(node.sourceUri) : null;
+      return relative?.replaceAll('\\', '/') === templateRelativePath;
+    });
+    const indexedTemplate = indexedFiles.find(
+      (file) => path.resolve(file.absPath).toLowerCase() === path.resolve(templatePath).toLowerCase(),
+    );
+    if (!templateDocument || !indexedTemplate || indexedTemplate.status !== 'done') {
+      throw new UserFacingError('선택한 HWP 양식이 현재 LLMWIKI 빌드에 없습니다. 다시 빌드한 뒤 저장해 주세요.');
+    }
+    const suggested = `${titleFromUserQuery(userQuery, markdown)}${GENERATED_EXTENSION}`;
+    const suggestedTarget = await uniquePath(
+      rootPath,
+      path.basename(suggested, GENERATED_EXTENSION),
+      GENERATED_EXTENSION,
+    );
     const result = await dialog.showSaveDialog(window ?? undefined!, {
       title: '한글 문서로 저장',
-      defaultPath: path.join(rootPath, suggested),
+      defaultPath: suggestedTarget,
       filters: [{ name: '한글 문서', extensions: ['hwpx'] }],
     });
     if (result.canceled || !result.filePath) return null;
@@ -176,23 +219,29 @@ export function registerIpcHandlers(
     const targetRelativePath = confinedRelativePath(rootPath, result.filePath, '.hwpx');
     const registry = await services.sidecar.documentCapabilities();
     const capability = registry.capabilities.find(
-      (item) => item.format === 'hwpx' && item.active && item.create,
+      (item) => item.format === 'hwp' && item.active && item.create
+        && item.operations.includes('hwp.derive_hwpx/v1'),
     );
     if (!capability) {
       const reason = registry.capabilities
-        .find((item) => item.format === 'hwpx')
+        .find((item) => item.format === 'hwp')
         ?.disabled_reasons.join('; ');
-      throw new Error(reason || 'HWPX writer 또는 renderer를 사용할 수 없습니다.');
+      throw new UserFacingError(reason || 'HWP를 편집 가능한 HWPX로 변환하는 기능을 사용할 수 없습니다.');
     }
     const health = await services.sidecar.health();
     const queued = await services.sidecar.createDocumentPlan({
-      document_id: `DOC-${randomUUID().toUpperCase()}`,
+      document_id: stableDocumentId(targetRelativePath),
       format: 'hwpx',
       capability_id: capability.capability_id,
       capability_snapshot_id: registry.snapshot_id,
       graph_version: health.knowledge_version,
       target_relative_path: targetRelativePath,
-      payload: { type: 'document.create_from_markdown/v1', markdown },
+      payload: {
+        type: 'hwp.derive_hwpx/v1',
+        source_document_id: templateDocument.docId,
+        expected_source_sha256: indexedTemplate.sha256,
+        markdown,
+      },
     });
     const plan = await services.sidecar.waitForDocumentPlan(queued);
     requirePendingApproval(plan);
@@ -209,10 +258,10 @@ export function registerIpcHandlers(
       })),
     );
     const approved = await services.approval.request({
-      tool: 'create_document',
+      tool: 'create_from_template',
       target: targetRelativePath,
       diff: JSON.stringify(plan.structural_diff, null, 2),
-      rationale: '승인한 proposed artifact만 CREATE_NEW로 적용하고 LLMWIKI를 재색인합니다.',
+      rationale: `「${templateRelativePath}」 원본은 보존합니다. 편집 가능한 HWPX 사본으로 변환한 뒤 양식에 내용을 채우고, 승인된 결과만 CREATE_NEW로 생성하여 LLMWIKI를 재색인합니다.`,
       changePlanId: plan.change_plan_id,
       planHash: plan.plan_hash ?? undefined,
       documentPreview: {
@@ -239,10 +288,21 @@ export function registerIpcHandlers(
       await services.sidecar.rejectDocumentPlan(plan);
       return null;
     }
-    const execution = await services.sidecar.approveDocumentPlan(plan);
-    const completed = await services.sidecar.waitForDocumentExecution(execution);
-    if (completed.status === 'failed' || completed.status === 'conflict') {
-      throw new Error(completed.error?.message || '승인된 HWPX 문서를 적용하지 못했습니다.');
+    if (!plan.proposed_sha256) {
+      throw new Error('승인할 HWPX artifact hash가 없습니다. 계획을 다시 만들어 주세요.');
+    }
+    const cancelManagedChange = services.expectManagedDocumentChange(
+      targetRelativePath,
+      plan.proposed_sha256,
+    );
+    try {
+      const execution = await services.sidecar.approveDocumentPlan(plan);
+      const completed = await services.sidecar.waitForDocumentExecution(execution);
+      if (completed.status === 'failed' || completed.status === 'conflict') {
+        throw new Error(completed.error?.message || '승인된 HWPX 문서를 적용하지 못했습니다.');
+      }
+    } finally {
+      cancelManagedChange();
     }
     return result.filePath;
   });
@@ -273,6 +333,22 @@ function confinedRelativePath(rootPath: string, targetPath: string, suffix: stri
     path.extname(target).toLowerCase() !== suffix
   ) {
     throw new Error('생성 파일은 등록된 작업 폴더 내부의 올바른 확장자 경로여야 합니다.');
+  }
+  return relative.split(path.sep).join('/');
+}
+
+function confinedSourceRelativePath(rootPath: string, sourcePath: string, suffix: string): string {
+  const root = path.resolve(rootPath);
+  const source = path.resolve(sourcePath);
+  const relative = path.relative(root, source);
+  if (
+    !relative ||
+    path.isAbsolute(relative) ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.extname(source).toLowerCase() !== suffix
+  ) {
+    throw new Error('양식 파일은 등록된 작업 폴더 안의 올바른 HWP 파일이어야 합니다.');
   }
   return relative.split(path.sep).join('/');
 }

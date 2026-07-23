@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import importlib
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -45,6 +46,8 @@ from codegate_api.knowledge.schemas import (
     SourceReference,
 )
 from codegate_api.state.store import PendingEvent, StateStore
+
+logger = logging.getLogger(__name__)
 
 _STANDALONE_NATIVE_ANCHOR = re.compile(
     r'^\s*<a\s+id=["\'](?P<id>[0-9A-Za-z][0-9A-Za-z._:-]{0,127})["\']\s*></a>\s*$'
@@ -123,18 +126,48 @@ class InProcessLLMWikiBuildRunner:
         self._actor_id = actor_id
         self._lock = threading.Lock()
 
-    def stage(self) -> str:
+    def stage(self, *, require_enrichment: bool = False) -> str:
         with self._lock:
             config_module, service_module = self._load_modules()
             config = config_module.load_config(self._builder_root / "config/wiki.yaml")
             request = self._request(service_module, expected_current_build_id=None)
             service = service_module.WikiBuildService(config)
             try:
-                enrichment = service.enrich_documents_if_configured(request, refresh=False)
-                if enrichment is not None and enrichment.failed:
-                    failed_ids = ", ".join(enrichment.failed[:10])
+                enrichment_mode = (
+                    "blocking"
+                    if require_enrichment
+                    else os.getenv(
+                        "CODEGATE_LLMWIKI_STARTUP_ENRICHMENT", "blocking"
+                    ).strip().lower()
+                )
+                if enrichment_mode == "blocking":
+                    try:
+                        enrichment = service.enrich_documents_if_configured(
+                            request, refresh=False
+                        )
+                    except Exception as error:
+                        if type(error).__name__ != "ValidationError":
+                            raise
+                        logger.warning(
+                            "LLMWIKI enrichment validation failed; staging canonical "
+                            "indexes without the rejected enrichment: %s",
+                            error,
+                        )
+                        enrichment = None
+                    if enrichment is not None and enrichment.failed:
+                        failed_ids = ", ".join(enrichment.failed[:10])
+                        logger.warning(
+                            "LLMWIKI enrichment rejected documents; staging canonical "
+                            "indexes without them: %s",
+                            failed_ids,
+                        )
+                elif enrichment_mode == "deferred":
+                    logger.info(
+                        "LLMWIKI startup enrichment is deferred; staging canonical indexes first"
+                    )
+                else:
                     raise LLMWikiCompatibilityError(
-                        f"LLMWIKI enrichment returned failed documents: {failed_ids}"
+                        "CODEGATE_LLMWIKI_STARTUP_ENRICHMENT must be blocking or deferred"
                     )
                 result = service.stage(request)
             except Exception as error:
@@ -337,7 +370,7 @@ class LLMWikiCompatibilityAdapter:
     def new_input_path(self, document_id: str) -> Path:
         """Return the only app-managed input location allowed for a created document."""
 
-        return _safe_output_child(self._input_root, f"general/{document_id}.md")
+        return _safe_output_child(self._input_root, f"{document_id}.md")
 
     def input_baseline(self, build: NativeBuild, document_id: str) -> NativeInputBaseline:
         manifest = build.manifest_by_id.get(document_id)
@@ -583,8 +616,8 @@ class NativeLLMWikiCatalog:
     def new_input_path(self, document_id: str) -> Path:
         return self._adapter.new_input_path(document_id)
 
-    def stage(self) -> str:
-        return self._runner.stage()
+    def stage(self, *, require_enrichment: bool = False) -> str:
+        return self._runner.stage(require_enrichment=require_enrichment)
 
     def prepare_candidate(
         self,
@@ -824,7 +857,10 @@ class NativeLLMWikiPipeline:
                 if not changed:
                     return parent_version
                 await asyncio.to_thread(self._verify_document_event_v2, payload)
-                build_id = await asyncio.to_thread(self._catalog.stage)
+                build_id = await asyncio.to_thread(
+                    self._catalog.stage,
+                    require_enrichment=True,
+                )
                 async with self._locks.acquire_publish():
                     prepared = await asyncio.to_thread(
                         self._catalog.prepare_candidate,
@@ -924,7 +960,31 @@ class NativeLLMWikiPipeline:
                 raise LLMWikiCompatibilityError("creation may add only one new document")
             input_path = self._catalog.new_input_path(payload.document_id)
             if input_path.exists():
-                raise LLMWikiCompatibilityError("creation input target already exists")
+                original = input_path.read_bytes()
+                existing_text = original.decode("utf-8")
+                existing_metadata, existing_body = _parse_normalized_markdown(
+                    existing_text,
+                    input_path,
+                )
+                _validate_input_identity(
+                    existing_metadata,
+                    document_id=payload.document_id,
+                    source_uri=payload.source_uri,
+                    allowed_source_hashes={payload.after_sha256},
+                    revision="1",
+                )
+                if not existing_body.strip():
+                    raise LLMWikiCompatibilityError("existing creation input body is empty")
+                self._record_and_write_input(
+                    path=input_path,
+                    text=existing_text,
+                    document_id=payload.document_id,
+                    active_build_id=parent_version,
+                    source_sha256=payload.after_sha256,
+                    revision="1",
+                    event_ids=[payload.event_id],
+                )
+                return True, input_path, original, False
             original = None
             title = _title_from_source_uri(payload.source_uri, payload.document_id)
             revision = "1"
@@ -1550,11 +1610,15 @@ def _convert_links(
         source_id = str(native["from_doc_id"])
         section_id = str(native["from_section_id"])
         quote = str(native["evidence_quote"])
-        matches = [
-            chunk["chunk_id"]
-            for chunk in chunks_by_section.get((source_id, section_id), [])
-            if quote in str(chunk["text"])
-        ]
+        section_chunks = chunks_by_section.get((source_id, section_id), [])
+        if native["origin"] == "semantic":
+            matches = [section_chunks[0]["chunk_id"]] if section_chunks else []
+        else:
+            matches = [
+                chunk["chunk_id"]
+                for chunk in section_chunks
+                if quote in str(chunk["text"])
+            ]
         if len(matches) != 1:
             raise LLMWikiCompatibilityError(
                 f"LLMWIKI link evidence is ambiguous: {source_id}#{section_id}"
@@ -1565,7 +1629,11 @@ def _convert_links(
                 "source_id": source_id,
                 "target_id": native["to_doc_id"],
                 "relation": str(native["relation_type"]).upper(),
-                "status": "VERIFIED" if native["origin"] == "explicit" else "PROPOSED",
+                "status": (
+                    "VERIFIED"
+                    if native["origin"] in {"explicit", "semantic"}
+                    else "PROPOSED"
+                ),
                 "evidence_chunk_ids": matches,
             }
         )

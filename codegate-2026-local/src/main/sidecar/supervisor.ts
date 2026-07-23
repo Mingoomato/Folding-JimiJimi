@@ -18,7 +18,7 @@ import { SIDECAR_STATUS_MESSAGE } from '@contracts';
 import { logError } from '@main/util/errors';
 
 /** `/health` 가 200 을 줄 때까지 이만큼만 기다린다. */
-const READY_TIMEOUT_MS = 30_000;
+const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const HEALTH_INTERVAL_MS = 300;
 /** 이 횟수를 넘기면 자동 재기동을 포기하고 사용자에게 알린다. */
 const MAX_RESTARTS = 3;
@@ -142,6 +142,12 @@ export function buildSidecarEnvironment(
     CODEGATE_LLMWIKI_STORAGE_ROOT: runtime.llmwikiStorageRoot,
     CODEGATE_LLMWIKI_TENANT_ID: runtime.tenantId ?? 'local',
     CODEGATE_LLMWIKI_WIKI_ID: runtime.wikiId ?? 'workspace',
+    ...(baseEnv.CODEGATE_LLMWIKI_STARTUP_ENRICHMENT
+      ? {
+          CODEGATE_LLMWIKI_STARTUP_ENRICHMENT:
+            baseEnv.CODEGATE_LLMWIKI_STARTUP_ENRICHMENT,
+        }
+      : {}),
     CODEGATE_CORS_ORIGINS: JSON.stringify([corsOrigin]),
     CODEGATE_AGENT_MODE: effectiveAgentMode(runtime),
     ...(runtime.claudeModel ? { CODEGATE_CLAUDE_MODEL: runtime.claudeModel } : {}),
@@ -169,6 +175,10 @@ export function buildSidecarEnvironment(
     // 한글(HWP/HWPX) 원본 수정에 쓰는 kordoc(Node 라이브러리)이 설치된 디렉터리.
     // 없으면 sidecar 가 cwd 에서 찾다 실패하고 "kordoc 을 찾지 못했습니다" 로 멈춘다.
     ...(baseEnv.CODEGATE_KORDOC_DIR ? { CODEGATE_KORDOC_DIR: baseEnv.CODEGATE_KORDOC_DIR } : {}),
+    ...(baseEnv.CODEGATE_NODE_BIN ? { CODEGATE_NODE_BIN: baseEnv.CODEGATE_NODE_BIN } : {}),
+    ...(baseEnv.CODEGATE_KORDOC_WORKSPACE_ROOT
+      ? { CODEGATE_KORDOC_WORKSPACE_ROOT: baseEnv.CODEGATE_KORDOC_WORKSPACE_ROOT }
+      : {}),
   };
 }
 
@@ -500,7 +510,12 @@ export class SidecarSupervisor {
 
   /** `/health` 가 200 을 줄 때까지 짧게 반복해 두드린다. */
   private async waitForHealth(signal: AbortSignal): Promise<void> {
-    const deadline = Date.now() + READY_TIMEOUT_MS;
+    const configuredTimeout = Number(process.env.CODEGATE_SIDECAR_READY_TIMEOUT_MS);
+    const readyTimeoutMs =
+      Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? configuredTimeout
+        : DEFAULT_READY_TIMEOUT_MS;
+    const deadline = Date.now() + readyTimeoutMs;
     let lastError = '엔진이 응답하지 않습니다.';
 
     while (Date.now() < deadline) {

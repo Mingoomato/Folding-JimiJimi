@@ -93,6 +93,7 @@ export class AppServices {
   private knowledgeSyncRequested = false;
   private knowledgeSyncRunning = false;
   private knowledgeSyncTimer: NodeJS.Timeout | null = null;
+  private readonly expectedManagedDocumentChanges = new Map<string, string>();
 
   private constructor(
     private readonly options: ServicesOptions,
@@ -258,6 +259,7 @@ export class AppServices {
       sendEvent: (envelope) => options.send(IPC_EVENTS.agentEvent, envelope),
       onAuthError: (error) => auth.handleAuthError(error),
       rejectApprovals: () => approval.rejectAll(),
+      deleteRemoteConversation: (conversationId) => sidecar.deleteConversation(conversationId),
     });
 
     const services = new AppServices(options, {
@@ -503,6 +505,7 @@ export class AppServices {
   private async onWatchChanges(changes: WatchChange[]): Promise<void> {
     try {
       let knowledgeChanged = false;
+      let treeChanged = false;
       for (const change of changes) {
         const previous = this.store.findFile(change.rootId, change.relPath);
         if (change.kind === 'unlink') {
@@ -516,10 +519,12 @@ export class AppServices {
         if (!watchChangeNeedsKnowledgeSync(change.kind, previous, row)) continue;
         if (!row) continue;
         this.store.upsertFiles([row]);
+        treeChanged = true;
+        if (this.consumeExpectedManagedDocumentChange(change.relPath, row.sha256)) continue;
         knowledgeChanged = true;
       }
+      if (treeChanged) this.emitTree();
       if (!knowledgeChanged) return;
-      this.emitTree();
       // debounce로 묶인 변경을 production normalized input과 sidecar corpus에 한 번 반영한다.
       this.requestKnowledgeSync(
         this.chat.busy ? '현재 답변이 끝나면 문서 변경을 반영합니다' : '문서 변경을 반영하는 중',
@@ -657,6 +662,32 @@ export class AppServices {
     return this.store.listRoots()[0]?.path ?? null;
   }
 
+  /**
+   * API v2 executor가 곧 만들 파일을 watcher의 일반 외부 변경 경로에서 제외한다.
+   * 해당 파일의 LLMWIKI 반영은 같은 transaction의 outbox가 담당한다.
+   */
+  expectManagedDocumentChange(relativePath: string, expectedSha256: string): () => void {
+    const key = normalizedRelativePath(relativePath);
+    const expected = expectedSha256.toLowerCase();
+    this.expectedManagedDocumentChanges.set(key, expected);
+    return () => {
+      const expiry = setTimeout(() => {
+        if (this.expectedManagedDocumentChanges.get(key) === expected) {
+          this.expectedManagedDocumentChanges.delete(key);
+        }
+      }, 30_000);
+      expiry.unref();
+    };
+  }
+
+  private consumeExpectedManagedDocumentChange(relativePath: string, sha256: string): boolean {
+    const key = normalizedRelativePath(relativePath);
+    const expected = this.expectedManagedDocumentChanges.get(key);
+    if (!expected || !managedDocumentChangeMatches(relativePath, sha256, key, expected)) return false;
+    this.expectedManagedDocumentChanges.delete(key);
+    return true;
+  }
+
   requestManualBuild(): void {
     if (this.store.listRoots().length === 0) {
       throw new UserFacingError('등록된 폴더가 없습니다. 폴더를 먼저 추가해 주세요.');
@@ -780,6 +811,22 @@ export function watchChangeNeedsKnowledgeSync(
   if (kind === 'unlink') return Boolean(previous && !previous.deleted);
   if (!next) return false;
   return !(previous && !previous.dirty && previous.sha256 === next.sha256);
+}
+
+function normalizedRelativePath(value: string): string {
+  return value.replaceAll('\\', '/').normalize('NFC').toLowerCase();
+}
+
+export function managedDocumentChangeMatches(
+  actualPath: string,
+  actualSha256: string,
+  expectedPath: string,
+  expectedSha256: string,
+): boolean {
+  return (
+    normalizedRelativePath(actualPath) === normalizedRelativePath(expectedPath)
+    && actualSha256.toLowerCase() === expectedSha256.toLowerCase()
+  );
 }
 
 function sidecarRuntimePaths(options: ServicesOptions, sourceRoot: string): SidecarRuntimePaths {

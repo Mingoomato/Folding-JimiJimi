@@ -110,19 +110,39 @@ class HwpxWriter:
     def derive(self, source: bytes, payload: HwpDerivationPayload) -> ProposedDocument:
         job = self._job()
         input_path = job / "input.hwp"
+        before_path = job / "template-before.hwpx"
         output_path = job / "proposed.hwpx"
         input_path.write_bytes(source)
-        parsed = self._worker.request("parse", input=self._worker.relative(input_path))
-        markdown = parsed.get("markdown")
-        if not isinstance(markdown, str):
-            raise WriterError("writer_protocol_error", "Kordoc HWP parse returned no Markdown")
-        self._worker.request(
-            "markdownToHwpx",
-            markdown=markdown,
+        result = self._worker.request(
+            "deriveHwpTemplate",
+            input=self._worker.relative(input_path),
+            beforeOutput=self._worker.relative(before_path),
             output=self._worker.relative(output_path),
+            markdown=payload.markdown,
         )
+        if payload.markdown is not None and not result.get("inserted"):
+            raise WriterError(
+                "unsupported_template",
+                "HWP template has no supported daily-work two-column content area",
+            )
+        before = before_path.read_bytes()
         proposed = output_path.read_bytes()
         self._worker.request("parse", input=self._worker.relative(output_path))
+        layout_value = result.get("layout")
+        layout: dict[str, Any] = layout_value if isinstance(layout_value, dict) else {}
+        compacted_lines = int(layout.get("compactedLines", 0))
+        warnings = [
+            "원본 HWP는 변경하지 않으며, 승인 시 편집 가능한 새 HWPX 파생본을 생성합니다.",
+            (
+                "HWP를 HWPX로 변환하면서 표 구조와 병합 셀은 유지하지만, "
+                "시각 서식은 Kordoc이 재구성하므로 원본과 일부 다를 수 있습니다."
+            ),
+        ]
+        if compacted_lines:
+            warnings.append(
+                f"고정 행 높이를 보존하기 위해 긴 표 셀 {compacted_lines}개를 "
+                "말줄임표로 축약했습니다. 승인 미리보기에서 내용을 확인하세요."
+            )
         return ProposedDocument(
             proposed,
             [
@@ -130,11 +150,20 @@ class HwpxWriter:
                     operation_index=0,
                     operation_type=payload.type,
                     before={"source_sha256": payload.expected_source_sha256},
-                    after={"format": "hwpx"},
+                    after={
+                        "format": "hwpx",
+                        "conversion": "hwp_to_hwpx",
+                        "template_mode": "converted_copy",
+                        "original_preserved": True,
+                        "template_filled": payload.markdown is not None,
+                        "inserted_sections": result.get("inserted", []),
+                        "layout": result.get("layout"),
+                    },
                 )
             ],
-            ["The original HWP is preserved; approval creates a new HWPX derivative."],
-            self.fingerprint,
+            warnings,
+            self.fingerprint + "+hwp-template-profile-fixed-rows/v3",
+            preview_before=before,
         )
 
     def render(self, source: bytes) -> list[tuple[str, bytes]]:

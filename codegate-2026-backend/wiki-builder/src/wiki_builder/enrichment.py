@@ -12,12 +12,12 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from wiki_builder.config import WikiConfig, WikiScope, scoped_config
-from wiki_builder.corpus import extract_links
+from wiki_builder.corpus import discover_links
 from wiki_builder.errors import ProviderError, ValidationError
 from wiki_builder.gemini import GeminiClient, get_api_key
 from wiki_builder.io_utils import atomic_write_json
 from wiki_builder.markdown import load_documents
-from wiki_builder.models import Document, Link
+from wiki_builder.models import Document, Link, Section
 from wiki_builder.provenance import compatible_model_fingerprint, model_fingerprint
 from wiki_builder.schemas import load_schema, validate_record
 
@@ -135,6 +135,8 @@ def _relation_evidence_matches_link(evidence: dict[str, Any], link: Link) -> boo
         return False
     if quote not in link.evidence_quote:
         return False
+    if link.origin == "semantic":
+        return True
     for match in MARKDOWN_LINK_RE.finditer(quote):
         target = match.group(1).split("#", maxsplit=1)[0]
         if PurePosixPath(target).stem == link.to_doc_id:
@@ -229,19 +231,52 @@ def validate_grounding(
         raise ValidationError("enrichment 근거 검증 실패\n- " + "\n- ".join(errors[:40]))
 
 
-def _request_payload(document: Document, links: list[Link]) -> dict[str, Any]:
+def _sample_sections(document: Document, max_sections: int) -> list[Section]:
+    sections = list(document.sections)
+    if len(sections) <= max_sections:
+        return sections
+    if max_sections == 1:
+        return [sections[0]]
+    indices = [
+        index * (len(sections) - 1) // (max_sections - 1)
+        for index in range(max_sections)
+    ]
+    return [sections[index] for index in indices]
+
+
+def _request_payload(
+    document: Document,
+    links: list[Link],
+    *,
+    max_chars: int,
+    max_sections: int,
+) -> dict[str, Any]:
     metadata = {key: value for key, value in document.metadata.items() if key not in {"source"}}
-    return {
-        "document": metadata,
-        "sections": [
+    selected = _sample_sections(document, max_sections)
+    remaining_chars = max_chars
+    section_payloads: list[dict[str, Any]] = []
+    for index, section in enumerate(selected):
+        remaining_sections = len(selected) - index
+        quota = max(1, remaining_chars // remaining_sections)
+        text = section.evidence_text[:quota].rstrip()
+        remaining_chars = max(0, remaining_chars - len(text))
+        section_payloads.append(
             {
                 "section_id": section.section_id,
                 "source_chunk_no": section.source_chunk_no,
                 "heading_path": list(section.heading_path),
-                "text": section.evidence_text,
+                "text": text,
             }
-            for section in document.sections
-        ],
+        )
+    return {
+        "document": metadata,
+        "sections": section_payloads,
+        "sampling": {
+            "total_sections": len(document.sections),
+            "included_sections": len(section_payloads),
+            "truncated": len(section_payloads) < len(document.sections)
+            or sum(len(section.evidence_text) for section in selected) > max_chars,
+        },
         "link_candidates": [
             {
                 "to_doc_id": link.to_doc_id,
@@ -326,7 +361,7 @@ def enrich_documents(
     ]
     _enforce_external_processing_policy(config, selected_documents)
     fingerprint = _check_provider_ready(config)
-    all_links = extract_links(documents)
+    all_links = discover_links(config, documents)
     links_by_doc = {
         document.doc_id: [link for link in all_links if link.from_doc_id == document.doc_id]
         for document in documents
@@ -367,7 +402,12 @@ def enrich_documents(
         for document_number, document in enumerate(pending, start=1):
             if progress:
                 progress(f"[{document_number}/{len(pending)}] {document.doc_id} 생성 시작")
-            request = _request_payload(document, links_by_doc[document.doc_id])
+            request = _request_payload(
+                document,
+                links_by_doc[document.doc_id],
+                max_chars=int(config.enrichment["max_input_chars"]),
+                max_sections=int(config.enrichment["max_input_sections"]),
+            )
             previous_output: str | None = None
             attempts: list[dict[str, Any]] = []
             attempt_usages: list[dict[str, Any]] = []

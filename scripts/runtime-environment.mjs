@@ -31,8 +31,13 @@ export function buildRuntimeEnvironments(baseEnv, paths) {
     CODEGATE_DOC2MD_PYTHON: paths.doc2mdPython,
     CODEGATE_SIDECAR_BIN: paths.sidecarBin,
     CODEGATE_LLMWIKI_PROJECT_ROOT: paths.backendDir,
+    CODEGATE_LLMWIKI_STARTUP_ENRICHMENT: 'blocking',
+    CODEGATE_SIDECAR_READY_TIMEOUT_MS: '300000',
+    CODEGATE_NODE_BIN: paths.nodeBin,
+    CODEGATE_KORDOC_WORKSPACE_ROOT: paths.localDir,
     CODEGATE_KORDOC_DIR: path.join(paths.localDir, 'node_modules', 'kordoc'),
     DOC2MD_DATA_ROOT: path.join(paths.runtimeDir, 'doc2md'),
+    DOC2MD_OCR_DEVICE: 'gpu',
   };
   return { cloudEnv, desktopEnv };
 }

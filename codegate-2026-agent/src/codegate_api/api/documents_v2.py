@@ -1,6 +1,6 @@
 from typing import Annotated, NoReturn
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
 from fastapi.responses import FileResponse
 
 from codegate_api.container import AppContainer
@@ -74,6 +74,31 @@ async def create_document_chat_message(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": error.code, "message": str(error)},
         ) from error
+
+
+@router.delete(
+    "/chat/conversations/{conversation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_chat_conversation(
+    conversation_id: Annotated[
+        str,
+        Path(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$"),
+    ],
+    access_context: Annotated[AccessContext, Depends(get_access_context)],
+    container: Annotated[AppContainer, Depends(get_container)],
+) -> Response:
+    if access_context.subject_id is None or access_context.tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "UNAUTHORIZED", "message": "로그인이 필요합니다."},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    await container.chat.delete_conversation(
+        conversation_id=conversation_id,
+        access_context=access_context,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

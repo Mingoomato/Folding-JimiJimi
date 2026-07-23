@@ -159,6 +159,7 @@ export interface DocumentCreationRequest {
         type: 'hwp.derive_hwpx/v1';
         source_document_id: string;
         expected_source_sha256: string;
+        markdown?: string;
       };
 }
 
@@ -187,6 +188,17 @@ export class SidecarClient {
       signal,
       failureMessage: '로컬 문서 에이전트가 답변하지 못했습니다.',
     });
+  }
+
+  deleteConversation(conversationId: string, signal?: AbortSignal): Promise<void> {
+    return httpRequest(
+      joinUrl(this.v2BaseUrl, `chat/conversations/${encodeURIComponent(conversationId)}`),
+      {
+        method: 'DELETE',
+        signal,
+        failureMessage: '채팅 기록을 삭제하지 못했습니다.',
+      },
+    ).then(() => undefined);
   }
 
   approve(plan: ChangePlanResponse, signal?: AbortSignal): Promise<ExecutionResponse> {
