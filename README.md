@@ -103,9 +103,11 @@ OAuth consent 화면의 게시 상태가 `Testing`이면 로그인할 Google 계
 불필요한 호출을 피한다. API 키가 설정된 상태에서 보강이 실패하면 새 후보를 공개하지 않아 기존
 활성 빌드가 유지된다. 키가 없는 오프라인 개발·smoke 경로만 불완전 색인을 명시적으로 허용한다.
 
-요청에 맞춰 현재 `gemini-2.5-flash-lite`를 고정했지만 Google이 공지한 가장 이른 종료일은
-2026-10-16이다. 그 전에 후속 모델로 설정·가격·fingerprint·회귀 테스트를 함께 마이그레이션해야
-한다. 일정은 [Gemini deprecations](https://ai.google.dev/gemini-api/docs/deprecations)에서 확인한다.
+현재 `gemini-2.5-flash-lite`를 고정한다. 모델 수명 주기는 릴리스 전에 공식
+[Gemini deprecations](https://ai.google.dev/gemini-api/docs/deprecations) 페이지에서 다시 확인해야
+한다. 해당 페이지의 현재 표기는 이 stable 모델에 “No shutdown date announced”이며, 별도의
+`gemini-2.5-flash-lite-preview-09-2025` 항목은 이미 종료된 preview로 구분되어 있다. 후속 모델로
+이동할 때는 설정·가격·fingerprint·회귀 테스트를 함께 검증한다.
 
 변경 요청에서 Gemini는 파일을 직접 쓰지 않는다. 대상 원본을 앱이 다시 읽어 SHA-256과 정확히 한
 번 존재하는 기존 문구를 검증한 뒤 미리보기만 만들며, 실제 쓰기는 사용자가 승인한 plan hash에만
@@ -141,3 +143,9 @@ pnpm smoke
 - HWPX, DOCX, PPTX, XLSX, PDF는 API v2의 capability·preflight artifact·렌더 승인·적용·Undo·
   LLMWIKI 동기화 경계를 사용한다. `.hwp` 원본은 수정하지 않고 HWPX 파생본만 생성한다.
 - 서명·암호화·macro/ActiveX/OLE 또는 지원 불명 OPC 구조는 fail-closed로 읽기 전용 처리한다.
+
+## 개발 투명성
+
+이 저장소는 AI 보조를 포함한 반복적인 설계·구현·검증 과정으로 개발했다. 기능의 현재 상태와
+보안 경계는 README의 서술보다 `component-manifest.json`, 실제 sidecar 코드, 그리고
+`codegate-2026-agent/tests/`의 테스트를 기준으로 판단해야 한다.

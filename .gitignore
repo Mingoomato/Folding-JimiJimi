@@ -7,6 +7,8 @@
 **/.ruff_cache/
 **/__pycache__/
 **/*.py[cod]
+/.coverage
+**/.coverage
 **/.cache/
 codegate-2026-local/out/
 codegate-2026-local/dist/
